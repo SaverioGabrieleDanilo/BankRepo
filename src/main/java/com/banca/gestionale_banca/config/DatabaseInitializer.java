@@ -34,20 +34,20 @@ public class DatabaseInitializer implements CommandLineRunner {
             ));
         }
 
-       
+
         if (userStatusRepository.count() == 0) {
             userStatusRepository.saveAll(List.of(
-                new UserStatus("ATTIVO"), 
-                new UserStatus("SOSPESO"), 
+                new UserStatus("ATTIVO"),
+                new UserStatus("SOSPESO"),
                 new UserStatus("CHIUSO")
             ));
         }
 
-       
+
         if (regStatusRepository.count() == 0) {
             regStatusRepository.saveAll(List.of(
-                new RegistrationStatus("PENDING"), 
-                new RegistrationStatus("APPROVED"), 
+                new RegistrationStatus("PENDING"),
+                new RegistrationStatus("APPROVED"),
                 new RegistrationStatus("REJECTED")
             ));
         }

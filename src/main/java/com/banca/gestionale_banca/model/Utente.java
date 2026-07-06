@@ -68,6 +68,9 @@ public class Utente {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     @Column(unique = true, nullable = false)
     private String keycloakId; 
 }
