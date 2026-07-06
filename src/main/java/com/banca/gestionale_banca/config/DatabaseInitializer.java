@@ -28,7 +28,8 @@ public class DatabaseInitializer implements CommandLineRunner {
 
         if (roleRepository.count() == 0) {
             roleRepository.saveAll(List.of(
-                new Role("EMPLOYEE"), 
+                new Role("ADMIN"),
+                new Role("OPERATORE"),
                 new Role("CUSTOMER")
             ));
         }

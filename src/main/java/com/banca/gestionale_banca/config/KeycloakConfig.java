@@ -17,15 +17,15 @@ public class KeycloakConfig {
     @Value("${keycloak.admin.password}")
     private String password;
 
-    
-    private static final String SERVER_URL = "http://localhost:9090";
+    @Value("${keycloak.server-url}")
+    private String serverUrl;
 
     @Bean
     public Keycloak keycloak() {
-        log.info("Configurazione Keycloak admin client -> server: {}, realm login: master, clientId: admin-cli", SERVER_URL);
+        log.info("Configurazione Keycloak admin client -> server: {}, realm login: master, clientId: admin-cli", serverUrl);
 
         return KeycloakBuilder.builder()
-                .serverUrl(SERVER_URL)
+                .serverUrl(serverUrl)
                 .realm("master")
                 .clientId("admin-cli")
                 .username(username)

@@ -2,6 +2,9 @@ package com.banca.gestionale_banca.service;
 
 import com.banca.gestionale_banca.dto.RegisterRequest;
 import com.banca.gestionale_banca.dto.UpdateUserRequest;
+import com.banca.gestionale_banca.exception.ConflictException;
+import com.banca.gestionale_banca.exception.ExternalServiceException;
+import com.banca.gestionale_banca.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.model.RegistrationStatus;
 import com.banca.gestionale_banca.model.Role;
 import com.banca.gestionale_banca.model.UserStatus;
@@ -18,13 +21,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,23 +44,24 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final UserStatusRepository userStatusRepository;
     private final RegistrationStatusRepository registrationStatusRepository;
-    private final PasswordEncoder passwordEncoder;
 
     // Costante per il nome del realm target (dove vivono gli utenti applicativi)
     private static final String REALM = "gestionale-banca";
+    // Ruolo assegnato a chi si autoregistra tramite l'endpoint pubblico
+    private static final String RUOLO_DEFAULT_REGISTRAZIONE = "CUSTOMER";
 
     @Override
     @Transactional
     public Utente registraUtente(RegisterRequest request) {
         if (userrepo.existsByUsername(request.getUsername())) {
-            throw new RuntimeException("Username già in uso");
+            throw new ConflictException("Username già in uso");
         }
         if (userrepo.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email già in uso");
+            throw new ConflictException("Email già in uso");
         }
 
-        Role role = roleRepository.findById(request.getRoleId())
-                .orElseThrow(() -> new RuntimeException("Ruolo non trovato"));
+        Role role = roleRepository.findByName(RUOLO_DEFAULT_REGISTRAZIONE)
+                .orElseThrow(() -> new ResourceNotFoundException("Ruolo '" + RUOLO_DEFAULT_REGISTRAZIONE + "' non trovato"));
 
         // Verifica esplicita che il realm target esista PRIMA di provare a creare l'utente.
         // Questo trasforma un 404 criptico in un errore chiaro e diagnosticabile.
@@ -67,10 +71,10 @@ public class UserServiceImpl implements UserService {
             realmResource.toRepresentation(); // forza una chiamata reale, così un realm inesistente fallisce qui
         } catch (NotFoundException e) {
             log.error("Il realm '{}' non esiste su Keycloak. Crealo dalla Admin Console prima di registrare utenti.", REALM);
-            throw new RuntimeException("Configurazione Keycloak non valida: realm '" + REALM + "' non trovato", e);
+            throw new ExternalServiceException("Configurazione Keycloak non valida: realm '" + REALM + "' non trovato", e);
         } catch (Exception e) {
             log.error("Impossibile contattare Keycloak: {}", e.getMessage());
-            throw new RuntimeException("Servizio di autenticazione non raggiungibile", e);
+            throw new ExternalServiceException("Servizio di autenticazione non raggiungibile", e);
         }
 
         UserRepresentation user = new UserRepresentation();
@@ -100,14 +104,14 @@ public class UserServiceImpl implements UserService {
                 // senza permessi 'manage-users' sul realm target, oppure server URL errato).
                 log.error("404 dalla creazione utente su Keycloak nonostante il realm '{}' esista. " +
                         "Verifica i permessi del client admin e l'URL del server Keycloak.", REALM);
-                throw new RuntimeException(
+                throw new ExternalServiceException(
                         "Errore nella creazione utente su Keycloak: 404 - verificare permessi del client admin sul realm '" + REALM + "'");
             }
 
             if (status != 201) {
                 String body = response.hasEntity() ? response.readEntity(String.class) : "";
                 log.error("Errore Keycloak: status {} - body: {}", status, body);
-                throw new RuntimeException("Errore nella creazione utente su Keycloak: " + status);
+                throw new ExternalServiceException("Errore nella creazione utente su Keycloak: " + status);
             }
 
             keycloakId = CreatedResponseUtil.getCreatedId(response);
@@ -116,9 +120,9 @@ public class UserServiceImpl implements UserService {
             assignRole(realmResource, usersResource, keycloakId, role.getName());
 
             UserStatus attivo = userStatusRepository.findByName("ATTIVO")
-                    .orElseThrow(() -> new RuntimeException("Stato ATTIVO non trovato"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Stato ATTIVO non trovato"));
             RegistrationStatus pending = registrationStatusRepository.findByName("PENDING")
-                    .orElseThrow(() -> new RuntimeException("Stato PENDING non trovato"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Stato PENDING non trovato"));
 
             Utente u = new Utente();
             u.setKeycloakId(keycloakId);
@@ -127,7 +131,6 @@ public class UserServiceImpl implements UserService {
             u.setFirstName(request.getFirstName());
             u.setLastName(request.getLastName());
             u.setDateOfBirth(request.getDateOfBirth());
-            u.setPasswordHash(passwordEncoder.encode(request.getPassword()));
             u.setRole(role);
             u.setStatus(attivo);
             u.setRegistrationStatus(pending);
@@ -156,14 +159,12 @@ public class UserServiceImpl implements UserService {
             usersResource.get(userId).roles().realmLevel().add(Collections.singletonList(realmRole));
         } catch (NotFoundException e) {
             log.error("Il ruolo realm '{}' non esiste su Keycloak nel realm target", roleName);
-            throw new RuntimeException("Ruolo '" + roleName + "' non trovato su Keycloak", e);
+            throw new ExternalServiceException("Ruolo '" + roleName + "' non trovato su Keycloak", e);
         } catch (Exception e) {
             log.error("Errore durante l'assegnazione del ruolo: {}", e.getMessage());
-            throw new RuntimeException("Impossibile assegnare il ruolo all'utente creato", e);
+            throw new ExternalServiceException("Impossibile assegnare il ruolo all'utente creato", e);
         }
     }
-
-    // ... (restanti metodi findById, findByKeycloakId, modificaUtente, ecc. invariati)
 
     @Override
     public Optional<Utente> findById(Long id) { return userrepo.findById(id); }
@@ -174,12 +175,19 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public Utente modificaUtente(Long id, UpdateUserRequest request) {
-        Utente u = userrepo.findById(id).orElseThrow(() -> new RuntimeException("Utente non trovato"));
-        if (request.getEmail() != null) u.setEmail(request.getEmail());
+        Utente u = userrepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+
+        UserResource keycloakUser = realmUsers().get(u.getKeycloakId());
+
+        if (request.getEmail() != null) {
+            u.setEmail(request.getEmail());
+            syncEmailToKeycloak(keycloakUser, request.getEmail());
+        }
         if (request.getRuolo() != null) {
             Role role = roleRepository.findByName(request.getRuolo())
-                    .orElseThrow(() -> new RuntimeException("Ruolo non trovato"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Ruolo non trovato"));
             u.setRole(role);
+            syncRoleToKeycloak(keycloakUser, u.getKeycloakId(), role.getName());
         }
         return userrepo.save(u);
     }
@@ -187,9 +195,19 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void disattivaUtente(Long id) {
-        Utente u = userrepo.findById(id).orElseThrow(() -> new RuntimeException("Utente non trovato"));
+        Utente u = userrepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
         UserStatus chiuso = userStatusRepository.findByName("CHIUSO")
-                .orElseThrow(() -> new RuntimeException("Stato CHIUSO non trovato"));
+                .orElseThrow(() -> new ResourceNotFoundException("Stato CHIUSO non trovato"));
+
+        try {
+            UserRepresentation rep = realmUsers().get(u.getKeycloakId()).toRepresentation();
+            rep.setEnabled(false);
+            realmUsers().get(u.getKeycloakId()).update(rep);
+        } catch (Exception e) {
+            log.error("Impossibile disabilitare l'utente {} su Keycloak: {}", u.getKeycloakId(), e.getMessage());
+            throw new ExternalServiceException("Impossibile disabilitare l'utente su Keycloak", e);
+        }
+
         u.setStatus(chiuso);
         userrepo.save(u);
     }
@@ -197,5 +215,35 @@ public class UserServiceImpl implements UserService {
     @Override
     public Page<Utente> getUtentiPaginati(Pageable pageable) {
         return userrepo.findAll(pageable);
+    }
+
+    private UsersResource realmUsers() {
+        return keycloak.realm(REALM).users();
+    }
+
+    private void syncEmailToKeycloak(UserResource keycloakUser, String email) {
+        try {
+            UserRepresentation rep = keycloakUser.toRepresentation();
+            rep.setEmail(email);
+            keycloakUser.update(rep);
+        } catch (Exception e) {
+            log.error("Impossibile aggiornare l'email su Keycloak: {}", e.getMessage());
+            throw new ExternalServiceException("Impossibile aggiornare l'email su Keycloak", e);
+        }
+    }
+
+    private void syncRoleToKeycloak(UserResource keycloakUser, String keycloakId, String roleName) {
+        try {
+            RealmResource realmResource = keycloak.realm(REALM);
+            keycloakUser.roles().realmLevel().listAll()
+                    .forEach(r -> keycloakUser.roles().realmLevel().remove(Collections.singletonList(r)));
+            RoleRepresentation realmRole = realmResource.roles().get(roleName).toRepresentation();
+            keycloakUser.roles().realmLevel().add(Collections.singletonList(realmRole));
+        } catch (NotFoundException e) {
+            throw new ExternalServiceException("Ruolo '" + roleName + "' non trovato su Keycloak", e);
+        } catch (Exception e) {
+            log.error("Impossibile aggiornare il ruolo su Keycloak per {}: {}", keycloakId, e.getMessage());
+            throw new ExternalServiceException("Impossibile aggiornare il ruolo su Keycloak", e);
+        }
     }
 }

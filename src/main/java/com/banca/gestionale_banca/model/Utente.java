@@ -39,9 +39,6 @@ public class Utente {
     @Column(unique = true, nullable = false)
     private String username;
 
-    @Column(nullable = false)
-    private String passwordHash;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "validated_by_id")
     @JsonIgnore

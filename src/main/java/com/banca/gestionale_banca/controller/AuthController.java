@@ -1,6 +1,7 @@
 package com.banca.gestionale_banca.controller;
 
 import com.banca.gestionale_banca.dto.LoginRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +34,7 @@ public class AuthController {
     private String clientSecret;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
 
         String tokenUrl = issuerUri + "/protocol/openid-connect/token";
 
