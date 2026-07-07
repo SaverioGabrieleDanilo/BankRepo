@@ -14,5 +14,6 @@ public interface UserService {
     Optional<Utente> findByKeycloakId(String keycloakId);
     Utente modificaUtente(Long id, UpdateUserRequest request);
     void disattivaUtente(Long id);
+    Utente cambiaStatoUtente(Long id, String statoNome);
     Page<Utente> getUtentiPaginati(Pageable pageable);
 }

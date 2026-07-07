@@ -15,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.banca.gestionale_banca.dto.AdminCreateUserRequest;
 import com.banca.gestionale_banca.dto.RegisterRequest;
 import com.banca.gestionale_banca.dto.UpdateUserRequest;
+import com.banca.gestionale_banca.dto.UserStatusRequest;
 import com.banca.gestionale_banca.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.model.Utente;
 import com.banca.gestionale_banca.service.UserService;
@@ -82,9 +83,15 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OPERATORE')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<Void> disattivaUtente(@PathVariable Long id) {
         userService.disattivaUtente(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    public ResponseEntity<Utente> cambiaStatoUtente(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request) {
+        return ResponseEntity.ok(userService.cambiaStatoUtente(id, request.getStato()));
     }
 }

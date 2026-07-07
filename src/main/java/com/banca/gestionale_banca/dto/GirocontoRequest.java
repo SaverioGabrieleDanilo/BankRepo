@@ -5,9 +5,8 @@ import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
 
-@Getter
-@Setter
-public class TransferRequest {
+@Getter@Setter
+public class GirocontoRequest {
     private String sourceIban;
     private String targetIban;
     private BigDecimal amount;

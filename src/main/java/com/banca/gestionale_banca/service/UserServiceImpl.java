@@ -223,6 +223,27 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public Utente cambiaStatoUtente(Long id, String statoNome) {
+        Utente u = userrepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        UserStatus nuovoStato = userStatusRepository.findByName(statoNome)
+                .orElseThrow(() -> new ResourceNotFoundException("Stato '" + statoNome + "' non valido"));
+
+        boolean enabled = "ATTIVO".equals(statoNome);
+        try {
+            UserRepresentation rep = realmUsers().get(u.getKeycloakId()).toRepresentation();
+            rep.setEnabled(enabled);
+            realmUsers().get(u.getKeycloakId()).update(rep);
+        } catch (Exception e) {
+            log.error("Impossibile aggiornare lo stato su Keycloak per {}: {}", u.getKeycloakId(), e.getMessage());
+            throw new ExternalServiceException("Impossibile aggiornare lo stato utente su Keycloak", e);
+        }
+
+        u.setStatus(nuovoStato);
+        return userrepo.save(u);
+    }
+
+    @Override
     public Page<Utente> getUtentiPaginati(Pageable pageable) {
         return userrepo.findAll(pageable);
     }

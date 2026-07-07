@@ -1,39 +1,46 @@
 package com.banca.gestionale_banca.service;
 
+import com.banca.gestionale_banca.dto.GirocontoRequest;
 import com.banca.gestionale_banca.dto.TransactionRequest;
 import com.banca.gestionale_banca.dto.TransactionResponse;
 import com.banca.gestionale_banca.dto.TransferRequest;
-import com.banca.gestionale_banca.exception.BusinessRuleException;
-import com.banca.gestionale_banca.exception.ResourceNotFoundException;
-import com.banca.gestionale_banca.model.*;
-import com.banca.gestionale_banca.repository.*;
+import com.banca.gestionale_banca.model.BankAccount;
+import com.banca.gestionale_banca.model.Transaction;
+import com.banca.gestionale_banca.model.TransactionStatus;
+import com.banca.gestionale_banca.model.TransactionType;
+import com.banca.gestionale_banca.repository.BankAccountRepository;
+import com.banca.gestionale_banca.repository.TransactionRepository;
+import com.banca.gestionale_banca.repository.TransactionStatusRepository;
+import com.banca.gestionale_banca.repository.TransactionTypeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import com.banca.gestionale_banca.repository.AccountLimitsRepository;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
 public class TransactionServiceImpl implements TransactionService {
 
+    private static final BigDecimal FEE_PERCENTAGE = new BigDecimal("0.02");
+    private static final String STATO_ESEGUITA = "ESEGUITA";
+
     private final BankAccountRepository bankAccountRepository;
     private final TransactionRepository transactionRepository;
     private final TransactionTypeRepository transactionTypeRepository;
     private final TransactionStatusRepository transactionStatusRepository;
-    private final AccountLimitsRepository accountLimitsRepository;
 
     @Override
     @Transactional
-    public TransactionResponse eseguiVersamento(TransactionRequest request, String keycloakId, boolean isOperatore) {
+    public TransactionResponse eseguiVersamento(TransactionRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = bankAccountRepository.findByIban(request.getIban())
                 .orElseThrow(() -> new RuntimeException("Conto corrente non trovato"));
 
-        verificaProprietario(account, keycloakId, isOperatore);
+        verificaProprietario(account, keycloakId, isEmployee);
 
         if (!"ATTIVO".equals(account.getStatus().getName())) {
             throw new RuntimeException("Il conto corrente non è attivo");
@@ -76,11 +83,11 @@ public class TransactionServiceImpl implements TransactionService {
 
     @Override
     @Transactional
-    public TransactionResponse eseguiPrelievo(TransactionRequest request, String keycloakId, boolean isOperatore) {
+    public TransactionResponse eseguiPrelievo(TransactionRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = bankAccountRepository.findByIban(request.getIban())
                 .orElseThrow(() -> new RuntimeException("Conto corrente non trovato"));
 
-        verificaProprietario(account, keycloakId, isOperatore);
+        verificaProprietario(account, keycloakId, isEmployee);
 
         if (!"ATTIVO".equals(account.getStatus().getName())) {
             throw new RuntimeException("Il conto corrente non è attivo");
@@ -125,123 +132,148 @@ public class TransactionServiceImpl implements TransactionService {
                 .build();
     }
 
-    @Override
-    @Transactional
-    public TransactionResponse eseguiBonifico(Long currentUserId, TransferRequest request) {
-
-        // 1. il conto ordinante esiste?
-        BankAccount payerAccount = bankAccountRepository.findById(request.getPayerAccountId())
-                .orElseThrow(() -> new ResourceNotFoundException("Conto ordinante non trovato"));
-
-        // 2. il conto ordinante appartiene davvero a chi ha fatto la richiesta?
-        if (!payerAccount.getUser().getId().equals(currentUserId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Il conto ordinante non appartiene all'utente autenticato");
-        }
-
-        // 3. il conto ordinante è ATTIVO?
-        if (!"ATTIVO".equals(payerAccount.getStatus().getName())) {
-            throw new BusinessRuleException("Il conto ordinante non è attivo");
-        }
-
-        // 4. il conto beneficiario esiste?
-        BankAccount payeeAccount = bankAccountRepository.findByIban(request.getPayeeIban())
-                .orElseThrow(() -> new ResourceNotFoundException("Conto beneficiario non trovato"));
-
-        // 5. il conto beneficiario è ATTIVO?
-        if (!"ATTIVO".equals(payeeAccount.getStatus().getName())) {
-            throw new BusinessRuleException("Il conto beneficiario non è attivo");
-        }
-
-        // 6. stesso titolare per ordinante e beneficiario? Va usato /transactions/giroconto
-        if (payerAccount.getUser().getId().equals(payeeAccount.getUser().getId())) {
-            throw new BusinessRuleException("Per trasferire fondi tra due tuoi conti usa il giroconto");
-        }
-
-        // 7. limite per singola operazione
-        AccountLimits limits = accountLimitsRepository.findByAccountId(payerAccount.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Limiti operativi non configurati per il conto ordinante"));
-
-        if (request.getAmount().compareTo(limits.getSingleTransactionLimit()) > 0) {
-            throw new BusinessRuleException("Importo superiore al limite per singola operazione");
-        }
-
-        // 8. limite di trasferimento mensile (US-5.3)
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime monthStart = now.withDayOfMonth(1).toLocalDate().atStartOfDay();
-        BigDecimal trasferitoQuestoMese =
-                transactionRepository.sumMonthlyTransfersByAccount(payerAccount.getId(), monthStart, now);
-
-        if (trasferitoQuestoMese.add(request.getAmount()).compareTo(limits.getMonthlyTransferLimit()) > 0) {
-            throw new BusinessRuleException("Superato il limite di trasferimento mensile");
-        }
-
-        // 9. saldo disponibile (US-3.2)
-        if (payerAccount.getBalance().compareTo(request.getAmount()) < 0) {
-            throw new BusinessRuleException("Saldo insufficiente");
-        }
-
-        // 10. aggiornamento saldo: il controllo di concorrenza è automatico grazie a @Version
-        payerAccount.setBalance(payerAccount.getBalance().subtract(request.getAmount()));
-        payeeAccount.setBalance(payeeAccount.getBalance().add(request.getAmount()));
-        bankAccountRepository.save(payerAccount);
-        bankAccountRepository.save(payeeAccount);
-
-        // Passaggio 4: creazione delle due righe di transazione
-        TransactionType transferOutType = transactionTypeRepository.findByName("TRANSFER_OUT")
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo transazione TRANSFER_OUT non configurato"));
-        TransactionType transferInType = transactionTypeRepository.findByName("TRANSFER_IN")
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo transazione TRANSFER_IN non configurato"));
-        TransactionStatus servita = transactionStatusRepository.findByName("SERVITA")
-                .orElseThrow(() -> new ResourceNotFoundException("Stato transazione SERVITA non configurato"));
-
-        LocalDateTime adesso = LocalDateTime.now();
-
-        Transaction transferOut = new Transaction();
-        transferOut.setType(transferOutType);
-        transferOut.setStatus(servita);
-        transferOut.setAmount(request.getAmount());
-        transferOut.setPayerAccount(payerAccount);
-        transferOut.setPayeeAccount(payeeAccount);
-        transferOut.setPayerUser(payerAccount.getUser());
-        transferOut.setPayeeUser(payeeAccount.getUser());
-        transferOut.setDescription(request.getDescription());
-        transferOut.setValueDate(adesso);
-        transferOut.setTransactionDate(adesso);
-        transferOut.setCreatedAt(adesso);
-        transactionRepository.save(transferOut);
-
-        Transaction transferIn = new Transaction();
-        transferIn.setType(transferInType);
-        transferIn.setStatus(servita);
-        transferIn.setAmount(request.getAmount());
-        transferIn.setPayerAccount(payerAccount);
-        transferIn.setPayeeAccount(payeeAccount);
-        transferIn.setPayerUser(payerAccount.getUser());
-        transferIn.setPayeeUser(payeeAccount.getUser());
-        transferIn.setDescription(request.getDescription());
-        transferIn.setValueDate(adesso);
-        transferIn.setTransactionDate(adesso);
-        transferIn.setCreatedAt(adesso);
-        transactionRepository.save(transferIn);
-
-        return TransactionResponse.builder()
-                .transactionId(transferOut.getId())
-                .iban(payerAccount.getIban())
-                .type(transferOutType.getName())
-                .amount(request.getAmount())
-                .updatedBalance(payerAccount.getBalance())
-                .status(servita.getName())
-                .timestamp(transferOut.getTransactionDate())
-                .build();
-    }
-
-
-    private void verificaProprietario(BankAccount account, String keycloakId, boolean isOperatore) {
-        if (isOperatore) {
+    private void verificaProprietario(BankAccount account, String keycloakId, boolean isEmployee) {
+        if (isEmployee) {
             return;
         }
         if (!account.getUser().getKeycloakId().equals(keycloakId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato ad operare su questo conto");
         }
+    }
+
+    @Override
+    @Transactional
+    public TransactionResponse eseguiBonifico(TransferRequest request, String keycloakId, boolean isEmployee) {
+        BankAccount sourceAccount = bankAccountRepository.findByIban(request.getSourceIban())
+                .orElseThrow(() -> new RuntimeException("Conto di origine non trovato"));
+
+        BankAccount targetAccount = bankAccountRepository.findByIban(request.getTargetIban())
+                .orElseThrow(() -> new RuntimeException("Conto di destinazione non trovato"));
+
+        verificaProprietario(sourceAccount, keycloakId, isEmployee);
+
+        if (!"ATTIVO".equals(sourceAccount.getStatus().getName()) || !"ATTIVO".equals(targetAccount.getStatus().getName())) {
+            throw new RuntimeException("Uno o entrambi i conti correnti non sono attivi");
+        }
+
+        BigDecimal fee = request.getAmount().multiply(FEE_PERCENTAGE).setScale(2, RoundingMode.HALF_EVEN);
+        BigDecimal totalDebit = request.getAmount().add(fee);
+
+        if (sourceAccount.getBalance().compareTo(totalDebit) < 0) {
+            throw new RuntimeException("Saldo insufficiente. Il bonifico richiede: " + totalDebit + "€ compresa trattenuta");
+        }
+
+        TransactionType type = transactionTypeRepository.findByName("BONIFICO")
+                .orElseThrow(() -> new RuntimeException("Tipo transazione BONIFICO non configurato"));
+
+        TransactionStatus status = transactionStatusRepository.findByName(STATO_ESEGUITA)
+                .orElseThrow(() -> new RuntimeException("Stato transazione ESEGUITA non configurato"));
+
+        sourceAccount.setBalance(sourceAccount.getBalance().subtract(totalDebit));
+        targetAccount.setBalance(targetAccount.getBalance().add(request.getAmount()));
+        bankAccountRepository.save(sourceAccount);
+        bankAccountRepository.save(targetAccount);
+
+        LocalDateTime now = LocalDateTime.now();
+        Transaction transaction = new Transaction();
+        transaction.setAmount(request.getAmount());
+        transaction.setDescription(request.getDescription() + " (Trattenuta: " + fee + "€)");
+        transaction.setTransactionDate(now);
+        transaction.setValueDate(now);
+        transaction.setCreatedAt(now);
+        transaction.setPayerAccount(sourceAccount);
+        transaction.setPayeeAccount(targetAccount);
+        transaction.setPayerUser(sourceAccount.getUser());
+        transaction.setPayeeUser(targetAccount.getUser());
+        transaction.setType(type);
+        transaction.setStatus(status);
+        transactionRepository.save(transaction);
+
+        return TransactionResponse.builder()
+                .transactionId(transaction.getId())
+                .iban(sourceAccount.getIban())
+                .type(type.getName())
+                .amount(request.getAmount())
+                .fee(fee)
+                .updatedBalance(sourceAccount.getBalance())
+                .status(status.getName())
+                .timestamp(transaction.getTransactionDate())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public TransactionResponse eseguiGiroconto(GirocontoRequest request, String keycloakId, boolean isEmployee) {
+        BankAccount sourceAccount = bankAccountRepository.findByIban(request.getSourceIban())
+                .orElseThrow(() -> new RuntimeException("Conto di origine non trovato"));
+
+        BankAccount targetAccount = bankAccountRepository.findByIban(request.getTargetIban())
+                .orElseThrow(() -> new RuntimeException("Conto di destinazione non trovato"));
+
+        verificaProprietario(sourceAccount, keycloakId, isEmployee);
+
+        if (!sourceAccount.getUser().getId().equals(targetAccount.getUser().getId())) {
+            throw new RuntimeException("Il giroconto è consentito solo tra conti dello stesso intestatario");
+        }
+
+        if (!"ATTIVO".equals(sourceAccount.getStatus().getName()) || !"ATTIVO".equals(targetAccount.getStatus().getName())) {
+            throw new RuntimeException("Uno o entrambi i conti non sono attivi");
+        }
+
+        if (sourceAccount.getBalance().compareTo(request.getAmount()) < 0) {
+            throw new RuntimeException("Saldo insufficiente per completare il giroconto");
+        }
+
+        TransactionType type = transactionTypeRepository.findByName("GIROCONTO")
+                .orElseThrow(() -> new RuntimeException("Tipo transazione GIROCONTO non configurato"));
+
+        TransactionStatus status = transactionStatusRepository.findByName(STATO_ESEGUITA)
+                .orElseThrow(() -> new RuntimeException("Stato transazione ESEGUITA non configurato"));
+
+        sourceAccount.setBalance(sourceAccount.getBalance().subtract(request.getAmount()));
+        targetAccount.setBalance(targetAccount.getBalance().add(request.getAmount()));
+        bankAccountRepository.save(sourceAccount);
+        bankAccountRepository.save(targetAccount);
+
+        LocalDateTime now = LocalDateTime.now();
+        Transaction transaction = new Transaction();
+        transaction.setAmount(request.getAmount());
+        transaction.setDescription(request.getDescription());
+        transaction.setTransactionDate(now);
+        transaction.setValueDate(now);
+        transaction.setCreatedAt(now);
+        transaction.setPayerAccount(sourceAccount);
+        transaction.setPayeeAccount(targetAccount);
+        transaction.setPayerUser(sourceAccount.getUser());
+        transaction.setPayeeUser(targetAccount.getUser());
+        transaction.setType(type);
+        transaction.setStatus(status);
+        transactionRepository.save(transaction);
+
+        return TransactionResponse.builder()
+                .transactionId(transaction.getId())
+                .iban(sourceAccount.getIban())
+                .type(type.getName())
+                .amount(request.getAmount())
+                .updatedBalance(sourceAccount.getBalance())
+                .status(status.getName())
+                .timestamp(transaction.getTransactionDate())
+                .build();
+    }
+
+    @Override
+    public TransactionResponse getTransazioneById(Long id) {
+        Transaction tx = transactionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Transazione non trovata"));
+
+        return TransactionResponse.builder()
+                .transactionId(tx.getId())
+                .iban(tx.getPayerAccount().getIban())
+                .type(tx.getType().getName())
+                .amount(tx.getAmount())
+                .updatedBalance(tx.getPayerAccount().getBalance())
+                .status(tx.getStatus().getName())
+                .timestamp(tx.getTransactionDate())
+                .build();
     }
 }
