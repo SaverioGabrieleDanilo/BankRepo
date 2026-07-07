@@ -13,6 +13,7 @@ public class TransactionResponse {
     private String iban;
     private String type;
     private BigDecimal amount;
+    private BigDecimal fee;
     private BigDecimal updatedBalance;
     private String status;
     private LocalDateTime timestamp;

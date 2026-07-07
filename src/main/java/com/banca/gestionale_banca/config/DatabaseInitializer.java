@@ -29,7 +29,7 @@ public class DatabaseInitializer implements CommandLineRunner {
         if (roleRepository.count() == 0) {
             roleRepository.saveAll(List.of(
                 new Role("ADMIN"),
-                new Role("OPERATORE"),
+                new Role("EMPLOYEE"),
                 new Role("CUSTOMER")
             ));
         }

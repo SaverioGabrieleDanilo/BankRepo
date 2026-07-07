@@ -17,7 +17,7 @@ import java.util.List;
 public class KeycloakRoleInitializer implements CommandLineRunner {
 
     private static final String REALM = "gestionale-banca";
-    private static final List<String> REALM_ROLES = List.of("ADMIN", "OPERATORE", "CUSTOMER");
+    private static final List<String> REALM_ROLES = List.of("ADMIN", "EMPLOYEE", "CUSTOMER");
 
     private final Keycloak keycloak;
 
