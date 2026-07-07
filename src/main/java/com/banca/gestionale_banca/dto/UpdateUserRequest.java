@@ -13,5 +13,5 @@ public class UpdateUserRequest {
     @Email
     private String email;
 
-    private String ruolo;
+    private String role;
 }

@@ -1,5 +1,10 @@
 package com.banca.gestionale_banca.controller;
 
+import com.banca.gestionale_banca.dto.TransferRequest;
+import com.banca.gestionale_banca.exception.ResourceNotFoundException;
+import com.banca.gestionale_banca.model.Utente;
+import com.banca.gestionale_banca.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -21,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TransactionController {
     private final TransactionService transactionservice;
+    private final UserService userService;
 
     @PostMapping("/versamento")
     @PreAuthorize("hasAnyRole('OPERATORE','CUSTOMER')")
@@ -41,5 +47,15 @@ public class TransactionController {
     private boolean isOperatore(Authentication authentication) {
         return authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_OPERATORE"));
+    }
+
+    @PostMapping("/bonifico")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<TransactionResponse> bonifico(@Valid @RequestBody TransferRequest request,
+                                                        @AuthenticationPrincipal Jwt jwt) {
+        Utente utenteCorrente = userService.findByKeycloakId(jwt.getSubject())
+                .orElseThrow(() -> new ResourceNotFoundException("Utente autenticato non trovato"));
+
+        return ResponseEntity.ok(transactionservice.eseguiBonifico(utenteCorrente.getId(), request));
     }
 }

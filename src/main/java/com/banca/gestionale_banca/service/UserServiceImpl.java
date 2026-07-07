@@ -193,8 +193,8 @@ public class UserServiceImpl implements UserService {
             u.setEmail(request.getEmail());
             syncEmailToKeycloak(keycloakUser, request.getEmail());
         }
-        if (request.getRuolo() != null) {
-            Role role = roleRepository.findByName(request.getRuolo())
+        if (request.getRole() != null) {
+            Role role = roleRepository.findByName(request.getRole())
                     .orElseThrow(() -> new ResourceNotFoundException("Ruolo non trovato"));
             u.setRole(role);
             syncRoleToKeycloak(keycloakUser, u.getKeycloakId(), role.getName());

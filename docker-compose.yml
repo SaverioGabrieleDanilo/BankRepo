@@ -29,7 +29,7 @@ services:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/gestionale_banca
       KC_DB_USERNAME: postgres
-      KC_DB_PASSWORD: postgres
+      KC_DB_PASSWORD: root
     ports:
       - "9090:9090"
     command: start-dev
