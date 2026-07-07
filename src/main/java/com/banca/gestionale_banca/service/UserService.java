@@ -9,6 +9,7 @@ import java.util.Optional;
 
 public interface UserService {
     Utente registraUtente(RegisterRequest request);
+    Utente registraUtenteConRuolo(RegisterRequest request, String ruolo);
     Optional<Utente> findById(Long id);
     Optional<Utente> findByKeycloakId(String keycloakId);
     Utente modificaUtente(Long id, UpdateUserRequest request);

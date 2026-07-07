@@ -53,6 +53,16 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public Utente registraUtente(RegisterRequest request) {
+        return creaUtente(request, RUOLO_DEFAULT_REGISTRAZIONE);
+    }
+
+    @Override
+    @Transactional
+    public Utente registraUtenteConRuolo(RegisterRequest request, String ruolo) {
+        return creaUtente(request, ruolo);
+    }
+
+    private Utente creaUtente(RegisterRequest request, String ruoloNome) {
         if (userrepo.existsByUsername(request.getUsername())) {
             throw new ConflictException("Username già in uso");
         }
@@ -60,8 +70,8 @@ public class UserServiceImpl implements UserService {
             throw new ConflictException("Email già in uso");
         }
 
-        Role role = roleRepository.findByName(RUOLO_DEFAULT_REGISTRAZIONE)
-                .orElseThrow(() -> new ResourceNotFoundException("Ruolo '" + RUOLO_DEFAULT_REGISTRAZIONE + "' non trovato"));
+        Role role = roleRepository.findByName(ruoloNome)
+                .orElseThrow(() -> new ResourceNotFoundException("Ruolo '" + ruoloNome + "' non trovato"));
 
         // Verifica esplicita che il realm target esista PRIMA di provare a creare l'utente.
         // Questo trasforma un 404 criptico in un errore chiaro e diagnosticabile.

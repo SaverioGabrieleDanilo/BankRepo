@@ -12,6 +12,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.banca.gestionale_banca.dto.AdminCreateUserRequest;
 import com.banca.gestionale_banca.dto.RegisterRequest;
 import com.banca.gestionale_banca.dto.UpdateUserRequest;
 import com.banca.gestionale_banca.exception.ResourceNotFoundException;
@@ -31,6 +32,13 @@ public class UserController {
     @PostMapping("/registra")
     public ResponseEntity<Utente> registraUtente(@Valid @RequestBody RegisterRequest request) {
         Utente utente = userService.registraUtente(request);
+        return ResponseEntity.ok(utente);
+    }
+
+    @PostMapping("/admin/crea")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Utente> creaUtenteConRuolo(@Valid @RequestBody AdminCreateUserRequest request) {
+        Utente utente = userService.registraUtenteConRuolo(request, request.getRuolo());
         return ResponseEntity.ok(utente);
     }
 

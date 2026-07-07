@@ -16,23 +16,6 @@ services:
       timeout: 5s
       retries: 5
 
-  postgres-keycloak:
-    image: postgres:15-alpine
-    container_name: banca-postgres-keycloak
-    environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: keycloak
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres_keycloak_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.1
     container_name: banca-keycloak
@@ -44,16 +27,15 @@ services:
       KC_HOSTNAME: localhost
       KC_HTTP_PORT: 9090
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/keycloak
-      KC_DB_USERNAME: keycloak
-      KC_DB_PASSWORD: keycloak
+      KC_DB_URL: jdbc:postgresql://postgres:5432/gestionale_banca
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
     ports:
       - "9090:9090"
     command: start-dev
     depends_on:
-      postgres-keycloak:
-        condition: service_healthy
+      postgres:
+        condition: service_healthy 
 
 volumes:
   postgres_data:
-  postgres_keycloak_data:
