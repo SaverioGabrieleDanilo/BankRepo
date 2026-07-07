@@ -1,0 +1,19 @@
+package com.banca.gestionale_banca.dto;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+import lombok.Builder;
+import lombok.Getter;
+
+@Getter
+@Builder
+public class TransactionResponse {
+    private Long transactionId;
+    private String iban;
+    private String type;
+    private BigDecimal amount;
+    private BigDecimal updatedBalance;
+    private String status;
+    private LocalDateTime timestamp;
+}
