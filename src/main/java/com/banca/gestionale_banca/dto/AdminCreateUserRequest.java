@@ -9,5 +9,5 @@ import lombok.Setter;
 public class AdminCreateUserRequest extends RegisterRequest {
 
     @NotBlank
-    private String ruolo;
+    private String role;
 }

@@ -23,6 +23,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -85,8 +88,9 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse eseguiBonifico(TransferRequest request, String keycloakId, boolean isEmployee) {
-        BankAccount sourceAccount = trovaConto(request.getSourceIban(), "Conto di origine non trovato");
-        BankAccount targetAccount = trovaConto(request.getTargetIban(), "Conto di destinazione non trovato");
+        Map<String, BankAccount> lockedAccounts = lockAccountsInOrder(request.getSourceIban(), request.getTargetIban());
+        BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
+        BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
 
         verificaProprietario(sourceAccount, keycloakId, isEmployee);
         verificaContoAttivo(sourceAccount, "Il conto di origine non è attivo");
@@ -119,8 +123,9 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse eseguiGiroconto(GirocontoRequest request, String keycloakId, boolean isEmployee) {
-        BankAccount sourceAccount = trovaConto(request.getSourceIban(), "Conto di origine non trovato");
-        BankAccount targetAccount = trovaConto(request.getTargetIban(), "Conto di destinazione non trovato");
+        Map<String, BankAccount> lockedAccounts = lockAccountsInOrder(request.getSourceIban(), request.getTargetIban());
+        BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
+        BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
 
         verificaProprietario(sourceAccount, keycloakId, isEmployee);
 
@@ -170,8 +175,26 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     private BankAccount trovaConto(String iban, String messaggioSeNonTrovato) {
-        return bankAccountRepository.findByIban(iban)
+        return bankAccountRepository.findByIbanForUpdate(iban)
                 .orElseThrow(() -> new ResourceNotFoundException(messaggioSeNonTrovato));
+    }
+
+    /**
+     * Acquisisce il lock pessimistico su entrambi i conti in ordine deterministico
+     * (per IBAN) per evitare deadlock quando due bonifici incrociati (A->B e B->A)
+     * vengono eseguiti in concorrenza.
+     */
+    private Map<String, BankAccount> lockAccountsInOrder(String sourceIban, String targetIban) {
+        List<String> ordered = sourceIban.compareTo(targetIban) <= 0
+                ? List.of(sourceIban, targetIban)
+                : List.of(targetIban, sourceIban);
+
+        Map<String, BankAccount> locked = new LinkedHashMap<>();
+        for (String iban : ordered) {
+            String label = iban.equals(sourceIban) ? "di origine" : "di destinazione";
+            locked.put(iban, trovaConto(iban, "Conto " + label + " non trovato"));
+        }
+        return locked;
     }
 
     private void verificaContoAttivo(BankAccount account, String messaggioSeNonAttivo) {
