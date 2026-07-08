@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
+
 import java.util.List;
 
 import com.banca.gestionale_banca.dto.AccountLimitsRequest;
@@ -70,7 +72,7 @@ public class BankAccountController {
 
     @PutMapping("/{id}/limits")
     @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
-    public ResponseEntity<AccountLimitsResponse> impostaLimiti(@PathVariable Long id, @RequestBody AccountLimitsRequest request) {
+    public ResponseEntity<AccountLimitsResponse> impostaLimiti(@PathVariable Long id, @Valid @RequestBody AccountLimitsRequest request) {
         return ResponseEntity.ok(accountLimitsService.impostaLimiti(id, request));
     }
 

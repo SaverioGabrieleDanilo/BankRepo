@@ -4,10 +4,12 @@ import com.banca.gestionale_banca.dto.GirocontoRequest;
 import com.banca.gestionale_banca.dto.TransactionRequest;
 import com.banca.gestionale_banca.dto.TransactionResponse;
 import com.banca.gestionale_banca.dto.TransferRequest;
+import com.banca.gestionale_banca.exception.BusinessRuleException;
 import com.banca.gestionale_banca.model.BankAccount;
 import com.banca.gestionale_banca.model.Transaction;
 import com.banca.gestionale_banca.model.TransactionStatus;
 import com.banca.gestionale_banca.model.TransactionType;
+import com.banca.gestionale_banca.repository.AccountLimitsRepository;
 import com.banca.gestionale_banca.repository.BankAccountRepository;
 import com.banca.gestionale_banca.repository.TransactionRepository;
 import com.banca.gestionale_banca.repository.TransactionStatusRepository;
@@ -33,6 +35,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepository;
     private final TransactionTypeRepository transactionTypeRepository;
     private final TransactionStatusRepository transactionStatusRepository;
+    private final AccountLimitsRepository accountLimitsRepository;
 
     @Override
     @Transactional
@@ -97,6 +100,9 @@ public class TransactionServiceImpl implements TransactionService {
             throw new RuntimeException("Saldo insufficiente per completare il prelievo");
         }
 
+        verificaLimiteSingolaTransazione(account, request.getAmount());
+        verificaLimiteGiornalieroPrelievo(account, request.getAmount());
+
         TransactionType type = transactionTypeRepository.findByName("PRELIEVO")
                 .orElseThrow(() -> new RuntimeException("Tipo transazione PRELIEVO non configurato"));
 
@@ -141,6 +147,39 @@ public class TransactionServiceImpl implements TransactionService {
         }
     }
 
+    private void verificaLimiteSingolaTransazione(BankAccount account, BigDecimal amount) {
+        accountLimitsRepository.findByAccountId(account.getId()).ifPresent(limiti -> {
+            if (amount.compareTo(limiti.getSingleTransactionLimit()) > 0) {
+                throw new BusinessRuleException(
+                        "Importo superiore al limite per singola transazione consentito (" + limiti.getSingleTransactionLimit() + "€)");
+            }
+        });
+    }
+
+    private void verificaLimiteGiornalieroPrelievo(BankAccount account, BigDecimal amount) {
+        accountLimitsRepository.findByAccountId(account.getId()).ifPresent(limiti -> {
+            LocalDateTime dayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
+            LocalDateTime dayEnd = dayStart.plusDays(1).minusNanos(1);
+            BigDecimal giaPrelevato = transactionRepository.sumDailyWithdrawalsByAccount(account.getId(), dayStart, dayEnd);
+            if (giaPrelevato.add(amount).compareTo(limiti.getDailyWithdrawalLimit()) > 0) {
+                throw new BusinessRuleException("Limite giornaliero di prelievo superato (limite: "
+                        + limiti.getDailyWithdrawalLimit() + "€, già prelevato oggi: " + giaPrelevato + "€)");
+            }
+        });
+    }
+
+    private void verificaLimiteMensileTrasferimenti(BankAccount account, BigDecimal amount) {
+        accountLimitsRepository.findByAccountId(account.getId()).ifPresent(limiti -> {
+            LocalDateTime monthStart = LocalDateTime.now().toLocalDate().withDayOfMonth(1).atStartOfDay();
+            LocalDateTime monthEnd = monthStart.plusMonths(1).minusNanos(1);
+            BigDecimal giaTrasferito = transactionRepository.sumMonthlyTransfersByAccount(account.getId(), monthStart, monthEnd);
+            if (giaTrasferito.add(amount).compareTo(limiti.getMonthlyTransferLimit()) > 0) {
+                throw new BusinessRuleException("Limite mensile di trasferimento superato (limite: "
+                        + limiti.getMonthlyTransferLimit() + "€, già trasferito questo mese: " + giaTrasferito + "€)");
+            }
+        });
+    }
+
     @Override
     @Transactional
     public TransactionResponse eseguiBonifico(TransferRequest request, String keycloakId, boolean isEmployee) {
@@ -162,6 +201,9 @@ public class TransactionServiceImpl implements TransactionService {
         if (sourceAccount.getBalance().compareTo(totalDebit) < 0) {
             throw new RuntimeException("Saldo insufficiente. Il bonifico richiede: " + totalDebit + "€ compresa trattenuta");
         }
+
+        verificaLimiteSingolaTransazione(sourceAccount, request.getAmount());
+        verificaLimiteMensileTrasferimenti(sourceAccount, request.getAmount());
 
         TransactionType type = transactionTypeRepository.findByName("BONIFICO")
                 .orElseThrow(() -> new RuntimeException("Tipo transazione BONIFICO non configurato"));
@@ -223,6 +265,9 @@ public class TransactionServiceImpl implements TransactionService {
         if (sourceAccount.getBalance().compareTo(request.getAmount()) < 0) {
             throw new RuntimeException("Saldo insufficiente per completare il giroconto");
         }
+
+        verificaLimiteSingolaTransazione(sourceAccount, request.getAmount());
+        verificaLimiteMensileTrasferimenti(sourceAccount, request.getAmount());
 
         TransactionType type = transactionTypeRepository.findByName("GIROCONTO")
                 .orElseThrow(() -> new RuntimeException("Tipo transazione GIROCONTO non configurato"));
