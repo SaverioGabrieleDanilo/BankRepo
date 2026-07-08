@@ -23,6 +23,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -40,7 +43,7 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse eseguiVersamento(TransactionRequest request, String keycloakId, boolean isEmployee) {
-        BankAccount account = bankAccountRepository.findByIban(request.getIban())
+        BankAccount account = bankAccountRepository.findByIbanForUpdate(request.getIban())
                 .orElseThrow(() -> new RuntimeException("Conto corrente non trovato"));
 
         verificaProprietario(account, keycloakId, isEmployee);
@@ -87,7 +90,7 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse eseguiPrelievo(TransactionRequest request, String keycloakId, boolean isEmployee) {
-        BankAccount account = bankAccountRepository.findByIban(request.getIban())
+        BankAccount account = bankAccountRepository.findByIbanForUpdate(request.getIban())
                 .orElseThrow(() -> new RuntimeException("Conto corrente non trovato"));
 
         verificaProprietario(account, keycloakId, isEmployee);
@@ -147,6 +150,21 @@ public class TransactionServiceImpl implements TransactionService {
         }
     }
 
+    private Map<String, BankAccount> lockAccountsInOrder(String sourceIban, String targetIban) {
+        List<String> ordered = sourceIban.compareTo(targetIban) <= 0
+                ? List.of(sourceIban, targetIban)
+                : List.of(targetIban, sourceIban);
+
+        Map<String, BankAccount> locked = new LinkedHashMap<>();
+        for (String iban : ordered) {
+            String label = iban.equals(sourceIban) ? "di origine" : "di destinazione";
+            BankAccount account = bankAccountRepository.findByIbanForUpdate(iban)
+                    .orElseThrow(() -> new RuntimeException("Conto " + label + " non trovato"));
+            locked.put(iban, account);
+        }
+        return locked;
+    }
+
     private void verificaLimiteSingolaTransazione(BankAccount account, BigDecimal amount) {
         accountLimitsRepository.findByAccountId(account.getId()).ifPresent(limiti -> {
             if (amount.compareTo(limiti.getSingleTransactionLimit()) > 0) {
@@ -183,11 +201,9 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse eseguiBonifico(TransferRequest request, String keycloakId, boolean isEmployee) {
-        BankAccount sourceAccount = bankAccountRepository.findByIban(request.getSourceIban())
-                .orElseThrow(() -> new RuntimeException("Conto di origine non trovato"));
-
-        BankAccount targetAccount = bankAccountRepository.findByIban(request.getTargetIban())
-                .orElseThrow(() -> new RuntimeException("Conto di destinazione non trovato"));
+        Map<String, BankAccount> lockedAccounts = lockAccountsInOrder(request.getSourceIban(), request.getTargetIban());
+        BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
+        BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
 
         verificaProprietario(sourceAccount, keycloakId, isEmployee);
 
@@ -246,11 +262,9 @@ public class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse eseguiGiroconto(GirocontoRequest request, String keycloakId, boolean isEmployee) {
-        BankAccount sourceAccount = bankAccountRepository.findByIban(request.getSourceIban())
-                .orElseThrow(() -> new RuntimeException("Conto di origine non trovato"));
-
-        BankAccount targetAccount = bankAccountRepository.findByIban(request.getTargetIban())
-                .orElseThrow(() -> new RuntimeException("Conto di destinazione non trovato"));
+        Map<String, BankAccount> lockedAccounts = lockAccountsInOrder(request.getSourceIban(), request.getTargetIban());
+        BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
+        BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
 
         verificaProprietario(sourceAccount, keycloakId, isEmployee);
 

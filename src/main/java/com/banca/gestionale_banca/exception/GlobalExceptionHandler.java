@@ -46,6 +46,12 @@ public class GlobalExceptionHandler {
         return body(HttpStatus.CONFLICT, "Operazione concorrente rilevata sul conto, riprova");
     }
 
+    @ExceptionHandler(org.springframework.dao.PessimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handlePessimisticLock(Exception e) {
+        log.warn("Lock pessimistico non acquisito sul conto: {}", e.getMessage());
+        return body(HttpStatus.CONFLICT, "Conto momentaneamente occupato da un'altra operazione, riprova");
+    }
+
     private ResponseEntity<Map<String, Object>> body(HttpStatus status, String message) {
         return ResponseEntity.status(status).body(Map.of(
                 "timestamp", Instant.now().toString(),
