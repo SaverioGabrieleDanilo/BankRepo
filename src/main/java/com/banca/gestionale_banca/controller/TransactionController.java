@@ -18,6 +18,7 @@ import com.banca.gestionale_banca.dto.TransactionResponse;
 import com.banca.gestionale_banca.dto.TransferRequest;
 import com.banca.gestionale_banca.service.TransactionService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -28,7 +29,7 @@ public class TransactionController {
 
     @PostMapping("/versamento")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
-    public ResponseEntity<TransactionResponse> versamento(@RequestBody TransactionRequest request,
+    public ResponseEntity<TransactionResponse> versamento(@Valid @RequestBody TransactionRequest request,
                                                            @AuthenticationPrincipal Jwt jwt,
                                                            Authentication authentication) {
         return ResponseEntity.ok(transactionservice.eseguiVersamento(request, jwt.getSubject(), isEmployee(authentication)));
@@ -36,7 +37,7 @@ public class TransactionController {
 
     @PostMapping("/prelievo")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
-    public ResponseEntity<TransactionResponse> prelievo(@RequestBody TransactionRequest request,
+    public ResponseEntity<TransactionResponse> prelievo(@Valid @RequestBody  TransactionRequest request,
                                                          @AuthenticationPrincipal Jwt jwt,
                                                          Authentication authentication) {
         return ResponseEntity.ok(transactionservice.eseguiPrelievo(request, jwt.getSubject(), isEmployee(authentication)));
@@ -44,7 +45,7 @@ public class TransactionController {
 
      @PostMapping("/transfer")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<TransactionResponse> bonifico(@RequestBody TransferRequest request,
+    public ResponseEntity<TransactionResponse> bonifico(@Valid @RequestBody  TransferRequest request,
                                                          @AuthenticationPrincipal Jwt jwt,
                                                          Authentication authentication) {
         return ResponseEntity.ok(transactionservice.eseguiBonifico(request, jwt.getSubject(), isEmployee(authentication)));
@@ -52,7 +53,7 @@ public class TransactionController {
 
     @PostMapping("/giroconto")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<TransactionResponse> giroconto(@RequestBody GirocontoRequest request,
+    public ResponseEntity<TransactionResponse> giroconto(@Valid @RequestBody  GirocontoRequest request,
                                                           @AuthenticationPrincipal Jwt jwt,
                                                           Authentication authentication) {
         return ResponseEntity.ok(transactionservice.eseguiGiroconto(request, jwt.getSubject(), isEmployee(authentication)));
