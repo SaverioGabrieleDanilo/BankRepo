@@ -52,6 +52,12 @@ public class GlobalExceptionHandler {
         return body(HttpStatus.CONFLICT, "Conto momentaneamente occupato da un'altra operazione, riprova");
     }
 
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleGeneric(Exception e) {
+        log.error("Errore non gestito", e);
+        return body(HttpStatus.INTERNAL_SERVER_ERROR, "Errore interno del server");
+    }
+
     private ResponseEntity<Map<String, Object>> body(HttpStatus status, String message) {
         return ResponseEntity.status(status).body(Map.of(
                 "timestamp", Instant.now().toString(),

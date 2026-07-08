@@ -36,9 +36,13 @@ Dopo aver creato l'admin user:
 
 1. Vai su http://localhost:9090/admin → login con admin/admin
 2. Crea realm: `gestionale-banca`
-3. Crea realm roles: `ADMIN`, `OPERATORE`, `EMPLOYEE`, `CUSTOMER`
-4. Crea client: `banca-client` con `Client authentication` ON, `Direct access grants` enabled
-5. Copia il client secret in `application.properties` → `keycloak.client-secret`
+3. Crea realm roles: `ADMIN`, `EMPLOYEE`, `CUSTOMER`
+4. Crea client `banca-client` (login utenti finali) con `Client authentication` ON, `Direct access grants` enabled
+5. Copia il client secret in `.env` → `KEYCLOAK_CLIENT_SECRET`
+6. Crea un **secondo client** `banca-service` (service account, usato dal backend per creare/gestire utenti — NON usare più `admin-cli`/realm `master`):
+   - `Client authentication` ON, `Service accounts roles` ON, tutti gli altri flow OFF
+   - Tab "Service accounts roles" → assegna i client role `manage-users` e `manage-realm` del client `realm-management`
+   - Copia il client secret in `.env` → `KEYCLOAK_SERVICE_CLIENT_SECRET`
 
 ## API
 
@@ -49,9 +53,9 @@ Dopo aver creato l'admin user:
 | `/api/utenti/{id}` | GET | ADMIN | Dettaglio utente |
 | `/api/utenti` | GET | ADMIN | Lista paginata |
 | `/api/utenti/{id}` | PUT | ADMIN/proprietario | Modifica utente |
-| `/api/utenti/{id}` | DELETE | ADMIN/OPERATORE | Disattiva utente |
+| `/api/utenti/{id}` | DELETE | ADMIN/EMPLOYEE | Disattiva utente |
 
 ## DB
 
 - PostgreSQL su `localhost:5432/gestionale_banca`
-- Hibernate `ddl-auto=update` (sviluppo)
+- Hibernate `ddl-auto=validate` — lo schema è gestito da Flyway (`src/main/resources/db/migration`), non da `ddl-auto`

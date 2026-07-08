@@ -15,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.banca.gestionale_banca.dto.AdminCreateUserRequest;
 import com.banca.gestionale_banca.dto.RegisterRequest;
 import com.banca.gestionale_banca.dto.UpdateUserRequest;
+import com.banca.gestionale_banca.dto.UserResponse;
 import com.banca.gestionale_banca.dto.UserStatusRequest;
 import com.banca.gestionale_banca.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.model.Utente;
@@ -31,38 +32,39 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping("/registra")
-    public ResponseEntity<Utente> registraUtente(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<UserResponse> registraUtente(@Valid @RequestBody RegisterRequest request) {
         Utente utente = userService.registraUtente(request);
-        return ResponseEntity.ok(utente);
+        return ResponseEntity.ok(UserResponse.from(utente));
     }
 
     @PostMapping("/admin/crea")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Utente> creaUtenteConRuolo(@Valid @RequestBody AdminCreateUserRequest request) {
+    public ResponseEntity<UserResponse> creaUtenteConRuolo(@Valid @RequestBody AdminCreateUserRequest request) {
         Utente utente = userService.registraUtenteConRuolo(request, request.getRole());
-        return ResponseEntity.ok(utente);
+        return ResponseEntity.ok(UserResponse.from(utente));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Utente> getUtenteById(@PathVariable Long id) {
+    public ResponseEntity<UserResponse> getUtenteById(@PathVariable Long id) {
         return userService.findById(id)
+                .map(UserResponse::from)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
     }
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Page<Utente>> getUtentiPaginati(
+    public ResponseEntity<Page<UserResponse>> getUtentiPaginati(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(userService.getUtentiPaginati(pageable));
+        return ResponseEntity.ok(userService.getUtentiPaginati(pageable).map(UserResponse::from));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Utente> modificaUtente(
+    public ResponseEntity<UserResponse> modificaUtente(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request,
             @AuthenticationPrincipal Jwt jwt,
@@ -79,7 +81,7 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato a modificare questo utente");
         }
 
-        return ResponseEntity.ok(userService.modificaUtente(id, request));
+        return ResponseEntity.ok(UserResponse.from(userService.modificaUtente(id, request)));
     }
 
     @DeleteMapping("/{id}")
@@ -91,7 +93,7 @@ public class UserController {
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<Utente> cambiaStatoUtente(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request) {
-        return ResponseEntity.ok(userService.cambiaStatoUtente(id, request.getStato()));
+    public ResponseEntity<UserResponse> cambiaStatoUtente(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request) {
+        return ResponseEntity.ok(UserResponse.from(userService.cambiaStatoUtente(id, request.getStato())));
     }
 }

@@ -10,8 +10,8 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 
-import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.Map;
 
@@ -21,7 +21,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final RestTemplate restTemplate;
+    private final RestClient restClient;
 
 
     @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
@@ -45,18 +45,18 @@ public class AuthController {
         params.add("username", loginRequest.getUsername());
         params.add("password", loginRequest.getPassword());
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
-
         try {
             log.debug("Richiesta token a: {}", tokenUrl);
-            ResponseEntity<Map> response = restTemplate.postForEntity(tokenUrl, request, Map.class);
-            return ResponseEntity.ok(response.getBody());
+            Map<?, ?> body = restClient.post()
+                    .uri(tokenUrl)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(params)
+                    .retrieve()
+                    .body(Map.class);
+            return ResponseEntity.ok(body);
 
-        } catch (HttpStatusCodeException e) {
-           
+        } catch (RestClientResponseException e) {
+
             log.error("Login fallito su Keycloak. Status: {} - Risposta: {}",
                     e.getStatusCode(), e.getResponseBodyAsString());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

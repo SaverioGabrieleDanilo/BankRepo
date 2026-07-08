@@ -1,5 +1,8 @@
 package com.banca.gestionale_banca.service;
 
+import com.banca.gestionale_banca.constants.StatiConto;
+import com.banca.gestionale_banca.constants.StatiTransazione;
+import com.banca.gestionale_banca.constants.TipiTransazione;
 import com.banca.gestionale_banca.dto.GirocontoRequest;
 import com.banca.gestionale_banca.dto.TransactionRequest;
 import com.banca.gestionale_banca.dto.TransactionResponse;
@@ -15,11 +18,10 @@ import com.banca.gestionale_banca.repository.BankAccountRepository;
 import com.banca.gestionale_banca.repository.TransactionRepository;
 import com.banca.gestionale_banca.repository.TransactionStatusRepository;
 import com.banca.gestionale_banca.repository.TransactionTypeRepository;
+import com.banca.gestionale_banca.security.AuthorizationFacade;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -32,22 +34,22 @@ import java.util.Map;
 public class TransactionServiceImpl implements TransactionService {
 
     private static final BigDecimal FEE_PERCENTAGE = new BigDecimal("0.02");
-    private static final String STATO_ESEGUITA = "ESEGUITA";
 
     private final BankAccountRepository bankAccountRepository;
     private final TransactionRepository transactionRepository;
     private final TransactionTypeRepository transactionTypeRepository;
     private final TransactionStatusRepository transactionStatusRepository;
     private final AccountLimitsRepository accountLimitsRepository;
+    private final AuthorizationFacade authorizationFacade;
 
     @Override
     @Transactional
     public TransactionResponse eseguiVersamento(TransactionRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = trovaConto(request.getIban(), "Conto corrente non trovato");
-        verificaProprietario(account, keycloakId, isEmployee);
+        authorizationFacade.verificaProprietario(account, keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         verificaContoAttivo(account, "Il conto corrente non è attivo");
 
-        TransactionType type = trovaTipo("VERSAMENTO");
+        TransactionType type = trovaTipo(TipiTransazione.VERSAMENTO);
         TransactionStatus status = trovaStatoEseguita();
 
         account.setBalance(account.getBalance().add(request.getAmount()));
@@ -63,7 +65,7 @@ public class TransactionServiceImpl implements TransactionService {
     @Transactional
     public TransactionResponse eseguiPrelievo(TransactionRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = trovaConto(request.getIban(), "Conto corrente non trovato");
-        verificaProprietario(account, keycloakId, isEmployee);
+        authorizationFacade.verificaProprietario(account, keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         verificaContoAttivo(account, "Il conto corrente non è attivo");
 
         if (account.getBalance().compareTo(request.getAmount()) < 0) {
@@ -73,7 +75,7 @@ public class TransactionServiceImpl implements TransactionService {
         verificaLimiteSingolaTransazione(account, request.getAmount());
         verificaLimiteGiornalieroPrelievo(account, request.getAmount());
 
-        TransactionType type = trovaTipo("PRELIEVO");
+        TransactionType type = trovaTipo(TipiTransazione.PRELIEVO);
         TransactionStatus status = trovaStatoEseguita();
 
         account.setBalance(account.getBalance().subtract(request.getAmount()));
@@ -92,7 +94,7 @@ public class TransactionServiceImpl implements TransactionService {
         BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
         BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
 
-        verificaProprietario(sourceAccount, keycloakId, isEmployee);
+        authorizationFacade.verificaProprietario(sourceAccount, keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         verificaContoAttivo(sourceAccount, "Il conto di origine non è attivo");
         verificaContoAttivo(targetAccount, "Il conto di destinazione non è attivo");
 
@@ -106,7 +108,7 @@ public class TransactionServiceImpl implements TransactionService {
         verificaLimiteSingolaTransazione(sourceAccount, request.getAmount());
         verificaLimiteMensileTrasferimenti(sourceAccount, request.getAmount());
 
-        TransactionType type = trovaTipo("BONIFICO");
+        TransactionType type = trovaTipo(TipiTransazione.BONIFICO);
         TransactionStatus status = trovaStatoEseguita();
 
         sourceAccount.setBalance(sourceAccount.getBalance().subtract(totalDebit));
@@ -127,7 +129,7 @@ public class TransactionServiceImpl implements TransactionService {
         BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
         BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
 
-        verificaProprietario(sourceAccount, keycloakId, isEmployee);
+        authorizationFacade.verificaProprietario(sourceAccount, keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
 
         if (!sourceAccount.getUser().getId().equals(targetAccount.getUser().getId())) {
             throw new ConflictException("Il giroconto è consentito solo tra conti dello stesso intestatario");
@@ -143,7 +145,7 @@ public class TransactionServiceImpl implements TransactionService {
         verificaLimiteSingolaTransazione(sourceAccount, request.getAmount());
         verificaLimiteMensileTrasferimenti(sourceAccount, request.getAmount());
 
-        TransactionType type = trovaTipo("GIROCONTO");
+        TransactionType type = trovaTipo(TipiTransazione.GIROCONTO);
         TransactionStatus status = trovaStatoEseguita();
 
         sourceAccount.setBalance(sourceAccount.getBalance().subtract(request.getAmount()));
@@ -163,15 +165,6 @@ public class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Transazione non trovata"));
 
         return toResponse(tx, tx.getPayerAccount().getIban(), tx.getPayerAccount().getBalance(), null);
-    }
-
-    private void verificaProprietario(BankAccount account, String keycloakId, boolean isEmployee) {
-        if (isEmployee) {
-            return;
-        }
-        if (!account.getUser().getKeycloakId().equals(keycloakId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato ad operare su questo conto");
-        }
     }
 
     private BankAccount trovaConto(String iban, String messaggioSeNonTrovato) {
@@ -198,7 +191,7 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     private void verificaContoAttivo(BankAccount account, String messaggioSeNonAttivo) {
-        if (!"ATTIVO".equals(account.getStatus().getName())) {
+        if (!StatiConto.ATTIVO.equals(account.getStatus().getName())) {
             throw new ConflictException(messaggioSeNonAttivo);
         }
     }
@@ -242,7 +235,7 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     private TransactionStatus trovaStatoEseguita() {
-        return transactionStatusRepository.findByName(STATO_ESEGUITA)
+        return transactionStatusRepository.findByName(StatiTransazione.ESEGUITA)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato transazione ESEGUITA non configurato"));
     }
 

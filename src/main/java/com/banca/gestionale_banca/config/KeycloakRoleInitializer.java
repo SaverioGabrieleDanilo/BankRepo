@@ -1,5 +1,6 @@
 package com.banca.gestionale_banca.config;
 
+import com.banca.gestionale_banca.constants.Ruoli;
 import jakarta.ws.rs.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +18,7 @@ import java.util.List;
 public class KeycloakRoleInitializer implements CommandLineRunner {
 
     private static final String REALM = "gestionale-banca";
-    private static final List<String> REALM_ROLES = List.of("ADMIN", "EMPLOYEE", "CUSTOMER");
+    private static final List<String> REALM_ROLES = List.of(Ruoli.ADMIN, Ruoli.EMPLOYEE, Ruoli.CUSTOMER);
 
     private final Keycloak keycloak;
 

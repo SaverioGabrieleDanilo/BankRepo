@@ -1,5 +1,8 @@
 package com.banca.gestionale_banca.service;
 
+import com.banca.gestionale_banca.constants.Ruoli;
+import com.banca.gestionale_banca.constants.StatiRegistrazione;
+import com.banca.gestionale_banca.constants.StatiUtente;
 import com.banca.gestionale_banca.dto.RegisterRequest;
 import com.banca.gestionale_banca.dto.UpdateUserRequest;
 import com.banca.gestionale_banca.exception.ConflictException;
@@ -29,7 +32,6 @@ import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -47,17 +49,16 @@ public class UserServiceImpl implements UserService {
 
     // Costante per il nome del realm target (dove vivono gli utenti applicativi)
     private static final String REALM = "gestionale-banca";
-    // Ruolo assegnato a chi si autoregistra tramite l'endpoint pubblico
-    private static final String RUOLO_DEFAULT_REGISTRAZIONE = "CUSTOMER";
 
+    // creaUtente() chiama Keycloak (I/O di rete) prima del salvataggio locale:
+    // niente @Transactional qui, per non tenere aperta una connessione DB per
+    // tutta la durata della chiamata esterna (vedi audit UserServiceImpl).
     @Override
-    @Transactional
     public Utente registraUtente(RegisterRequest request) {
-        return creaUtente(request, RUOLO_DEFAULT_REGISTRAZIONE);
+        return creaUtente(request, Ruoli.CUSTOMER);
     }
 
     @Override
-    @Transactional
     public Utente registraUtenteConRuolo(RegisterRequest request, String ruolo) {
         return creaUtente(request, ruolo);
     }
@@ -129,9 +130,9 @@ public class UserServiceImpl implements UserService {
             // Assegnazione ruolo
             assignRole(realmResource, usersResource, keycloakId, role.getName());
 
-            UserStatus attivo = userStatusRepository.findByName("ATTIVO")
+            UserStatus attivo = userStatusRepository.findByName(StatiUtente.ATTIVO)
                     .orElseThrow(() -> new ResourceNotFoundException("Stato ATTIVO non trovato"));
-            RegistrationStatus pending = registrationStatusRepository.findByName("PENDING")
+            RegistrationStatus pending = registrationStatusRepository.findByName(StatiRegistrazione.PENDING)
                     .orElseThrow(() -> new ResourceNotFoundException("Stato PENDING non trovato"));
 
             Utente u = new Utente();
@@ -183,7 +184,6 @@ public class UserServiceImpl implements UserService {
     public Optional<Utente> findByKeycloakId(String keycloakId) { return userrepo.findByKeycloakId(keycloakId); }
 
     @Override
-    @Transactional
     public Utente modificaUtente(Long id, UpdateUserRequest request) {
         Utente u = userrepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
 
@@ -203,10 +203,9 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Transactional
     public void disattivaUtente(Long id) {
         Utente u = userrepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
-        UserStatus chiuso = userStatusRepository.findByName("CHIUSO")
+        UserStatus chiuso = userStatusRepository.findByName(StatiUtente.CHIUSO)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato CHIUSO non trovato"));
 
         try {
@@ -223,13 +222,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @Transactional
     public Utente cambiaStatoUtente(Long id, String statoNome) {
         Utente u = userrepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
         UserStatus nuovoStato = userStatusRepository.findByName(statoNome)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato '" + statoNome + "' non valido"));
 
-        boolean enabled = "ATTIVO".equals(statoNome);
+        boolean enabled = StatiUtente.ATTIVO.equals(statoNome);
         try {
             UserRepresentation rep = realmUsers().get(u.getKeycloakId()).toRepresentation();
             rep.setEnabled(enabled);

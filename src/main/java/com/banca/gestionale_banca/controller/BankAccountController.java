@@ -1,5 +1,8 @@
 package com.banca.gestionale_banca.controller;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -12,17 +15,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-
-import java.util.List;
 
 import com.banca.gestionale_banca.dto.AccountLimitsRequest;
 import com.banca.gestionale_banca.dto.AccountLimitsResponse;
 import com.banca.gestionale_banca.dto.ApproveAccountRequest;
 import com.banca.gestionale_banca.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.dto.BankAccountResponse;
+import com.banca.gestionale_banca.security.AuthorizationFacade;
 import com.banca.gestionale_banca.service.AccountLimitsService;
 import com.banca.gestionale_banca.service.BankAccountService;
 
@@ -35,6 +38,7 @@ public class BankAccountController {
 
     private final BankAccountService bankAccountService;
     private final AccountLimitsService accountLimitsService;
+    private final AuthorizationFacade authorizationFacade;
 
     @PostMapping("/apertura")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
@@ -53,13 +57,17 @@ public class BankAccountController {
     public ResponseEntity<BankAccountResponse> chiudiConto(@PathVariable Long id,
                                                             @AuthenticationPrincipal Jwt jwt,
                                                             Authentication authentication) {
-        return ResponseEntity.ok(bankAccountService.chiudiConto(id, jwt.getSubject(), isEmployee(authentication)));
+        return ResponseEntity.ok(bankAccountService.chiudiConto(id, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<BankAccountAdminResponse>> listaConti() {
-        return ResponseEntity.ok(bankAccountService.listaConti());
+    public ResponseEntity<Page<BankAccountAdminResponse>> listaConti(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(bankAccountService.listaConti(pageable));
     }
 
     @GetMapping("/{id}/limits")
@@ -67,17 +75,12 @@ public class BankAccountController {
     public ResponseEntity<AccountLimitsResponse> getLimiti(@PathVariable Long id,
                                                             @AuthenticationPrincipal Jwt jwt,
                                                             Authentication authentication) {
-        return ResponseEntity.ok(accountLimitsService.getLimiti(id, jwt.getSubject(), isEmployee(authentication)));
+        return ResponseEntity.ok(accountLimitsService.getLimiti(id, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
     @PutMapping("/{id}/limits")
     @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
     public ResponseEntity<AccountLimitsResponse> impostaLimiti(@PathVariable Long id, @Valid @RequestBody AccountLimitsRequest request) {
         return ResponseEntity.ok(accountLimitsService.impostaLimiti(id, request));
-    }
-
-    private boolean isEmployee(Authentication authentication) {
-        return authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_EMPLOYEE"));
     }
 }

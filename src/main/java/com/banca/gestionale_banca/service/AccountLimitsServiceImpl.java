@@ -7,12 +7,11 @@ import com.banca.gestionale_banca.model.AccountLimits;
 import com.banca.gestionale_banca.model.BankAccount;
 import com.banca.gestionale_banca.repository.AccountLimitsRepository;
 import com.banca.gestionale_banca.repository.BankAccountRepository;
+import com.banca.gestionale_banca.security.AuthorizationFacade;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 
@@ -22,13 +21,14 @@ public class AccountLimitsServiceImpl implements AccountLimitsService {
 
     private final AccountLimitsRepository accountLimitsRepository;
     private final BankAccountRepository bankAccountRepository;
+    private final AuthorizationFacade authorizationFacade;
 
     @Override
     public AccountLimitsResponse getLimiti(Long accountId, String keycloakId, boolean isEmployee) {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
-        verificaProprietario(account, keycloakId, isEmployee);
+        authorizationFacade.verificaProprietario(account, keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
 
         AccountLimits limiti = accountLimitsRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Limiti non ancora configurati per questo conto"));
@@ -58,15 +58,6 @@ public class AccountLimitsServiceImpl implements AccountLimitsService {
         limiti = accountLimitsRepository.save(limiti);
 
         return toResponse(limiti);
-    }
-
-    private void verificaProprietario(BankAccount account, String keycloakId, boolean isEmployee) {
-        if (isEmployee) {
-            return;
-        }
-        if (!account.getUser().getKeycloakId().equals(keycloakId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato a consultare questo conto");
-        }
     }
 
     private AccountLimitsResponse toResponse(AccountLimits limiti) {

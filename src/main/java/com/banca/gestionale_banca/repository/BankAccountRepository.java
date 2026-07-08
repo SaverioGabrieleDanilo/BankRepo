@@ -3,6 +3,8 @@ package com.banca.gestionale_banca.repository;
 import com.banca.gestionale_banca.model.BankAccount;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -21,4 +23,8 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, Long> 
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "5000"))
     @Query("SELECT b FROM BankAccount b WHERE b.iban = :iban")
     Optional<BankAccount> findByIbanForUpdate(@Param("iban") String iban);
+
+    @Query(value = "SELECT b FROM BankAccount b JOIN FETCH b.user JOIN FETCH b.status",
+           countQuery = "SELECT COUNT(b) FROM BankAccount b")
+    Page<BankAccount> findAllWithUser(Pageable pageable);
 }

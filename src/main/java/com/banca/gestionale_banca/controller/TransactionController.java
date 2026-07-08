@@ -16,6 +16,7 @@ import com.banca.gestionale_banca.dto.GirocontoRequest;
 import com.banca.gestionale_banca.dto.TransactionRequest;
 import com.banca.gestionale_banca.dto.TransactionResponse;
 import com.banca.gestionale_banca.dto.TransferRequest;
+import com.banca.gestionale_banca.security.AuthorizationFacade;
 import com.banca.gestionale_banca.service.TransactionService;
 
 import jakarta.validation.Valid;
@@ -26,49 +27,43 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TransactionController {
     private final TransactionService transactionservice;
+    private final AuthorizationFacade authorizationFacade;
 
     @PostMapping("/versamento")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
     public ResponseEntity<TransactionResponse> versamento(@Valid @RequestBody TransactionRequest request,
                                                            @AuthenticationPrincipal Jwt jwt,
                                                            Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiVersamento(request, jwt.getSubject(), isEmployee(authentication)));
+        return ResponseEntity.ok(transactionservice.eseguiVersamento(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
     @PostMapping("/prelievo")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
-    public ResponseEntity<TransactionResponse> prelievo(@Valid @RequestBody  TransactionRequest request,
+    public ResponseEntity<TransactionResponse> prelievo(@Valid @RequestBody TransactionRequest request,
                                                          @AuthenticationPrincipal Jwt jwt,
                                                          Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiPrelievo(request, jwt.getSubject(), isEmployee(authentication)));
+        return ResponseEntity.ok(transactionservice.eseguiPrelievo(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
-     @PostMapping("/transfer")
+    @PostMapping("/transfer")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<TransactionResponse> bonifico(@Valid @RequestBody  TransferRequest request,
+    public ResponseEntity<TransactionResponse> bonifico(@Valid @RequestBody TransferRequest request,
                                                          @AuthenticationPrincipal Jwt jwt,
                                                          Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiBonifico(request, jwt.getSubject(), isEmployee(authentication)));
+        return ResponseEntity.ok(transactionservice.eseguiBonifico(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
     @PostMapping("/giroconto")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<TransactionResponse> giroconto(@Valid @RequestBody  GirocontoRequest request,
+    public ResponseEntity<TransactionResponse> giroconto(@Valid @RequestBody GirocontoRequest request,
                                                           @AuthenticationPrincipal Jwt jwt,
                                                           Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiGiroconto(request, jwt.getSubject(), isEmployee(authentication)));
+        return ResponseEntity.ok(transactionservice.eseguiGiroconto(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')") 
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<TransactionResponse> getTransazione(@PathVariable Long id) {
         return ResponseEntity.ok(transactionservice.getTransazioneById(id));
     }
-
-    private boolean isEmployee(Authentication authentication) {
-        return authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_EMPLOYEE"));
-    }
-
-
 }
