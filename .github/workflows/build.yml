@@ -40,4 +40,6 @@ jobs:
       # Keycloak gia' configurato col realm applicativo: fuori scope per questo
       # workflow minimale, il context-load resta da verificare in locale.
       - name: Build and test
-        run: ./mvnw -B verify -Dtest='!GestionaleBancaApplicationTests' -DfailIfNoTests=false
+        run: |
+          chmod +x mvnw
+          ./mvnw -B verify -Dtest='!GestionaleBancaApplicationTests' -DfailIfNoTests=false
