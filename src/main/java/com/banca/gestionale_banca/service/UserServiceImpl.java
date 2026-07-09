@@ -178,14 +178,23 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<Utente> findById(Long id) { return userrepo.findById(id); }
+    public Optional<Utente> findById(Long id) { return userrepo.findByIdWithDetails(id); }
 
     @Override
     public Optional<Utente> findByKeycloakId(String keycloakId) { return userrepo.findByKeycloakId(keycloakId); }
 
     @Override
     public Utente modificaUtente(Long id, UpdateUserRequest request) {
-        Utente u = userrepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        Utente u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+
+        // Risolve il ruolo PRIMA di qualunque chiamata Keycloak: se il ruolo richiesto
+        // non esiste, deve fallire qui senza aver già sincronizzato l'email, altrimenti
+        // Keycloak e DB restano disallineati (email cambiata solo su Keycloak).
+        Role nuovoRuolo = null;
+        if (request.getRole() != null) {
+            nuovoRuolo = roleRepository.findByName(request.getRole())
+                    .orElseThrow(() -> new ResourceNotFoundException("Ruolo non trovato"));
+        }
 
         UserResource keycloakUser = realmUsers().get(u.getKeycloakId());
 
@@ -193,37 +202,26 @@ public class UserServiceImpl implements UserService {
             u.setEmail(request.getEmail());
             syncEmailToKeycloak(keycloakUser, request.getEmail());
         }
-        if (request.getRole() != null) {
-            Role role = roleRepository.findByName(request.getRole())
-                    .orElseThrow(() -> new ResourceNotFoundException("Ruolo non trovato"));
-            u.setRole(role);
-            syncRoleToKeycloak(keycloakUser, u.getKeycloakId(), role.getName());
+        if (nuovoRuolo != null) {
+            u.setRole(nuovoRuolo);
+            syncRoleToKeycloak(keycloakUser, u.getKeycloakId(), nuovoRuolo.getName());
         }
-        return userrepo.save(u);
+        userrepo.save(u);
+        // Ri-fetch con JOIN FETCH: save() su un'entity detached fa un merge che
+        // rimpiazza le associazioni lazy con nuovi proxy legati a una sessione
+        // già chiusa (niente @Transactional qui, vedi nota su creaUtente sopra:
+        // evitiamo di tenere una connessione DB aperta durante l'I/O verso Keycloak).
+        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
     }
 
     @Override
     public void disattivaUtente(Long id) {
-        Utente u = userrepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
-        UserStatus chiuso = userStatusRepository.findByName(StatiUtente.CHIUSO)
-                .orElseThrow(() -> new ResourceNotFoundException("Stato CHIUSO non trovato"));
-
-        try {
-            UserRepresentation rep = realmUsers().get(u.getKeycloakId()).toRepresentation();
-            rep.setEnabled(false);
-            realmUsers().get(u.getKeycloakId()).update(rep);
-        } catch (Exception e) {
-            log.error("Impossibile disabilitare l'utente {} su Keycloak: {}", u.getKeycloakId(), e.getMessage());
-            throw new ExternalServiceException("Impossibile disabilitare l'utente su Keycloak", e);
-        }
-
-        u.setStatus(chiuso);
-        userrepo.save(u);
+        cambiaStatoUtente(id, StatiUtente.CHIUSO);
     }
 
     @Override
     public Utente cambiaStatoUtente(Long id, String statoNome) {
-        Utente u = userrepo.findById(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        Utente u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
         UserStatus nuovoStato = userStatusRepository.findByName(statoNome)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato '" + statoNome + "' non valido"));
 
@@ -238,12 +236,15 @@ public class UserServiceImpl implements UserService {
         }
 
         u.setStatus(nuovoStato);
-        return userrepo.save(u);
+        userrepo.save(u);
+        // Vedi nota in modificaUtente: ri-fetch con JOIN FETCH dopo il save
+        // per evitare LazyInitializationException sull'entity restituita.
+        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
     }
 
     @Override
     public Page<Utente> getUtentiPaginati(Pageable pageable) {
-        return userrepo.findAll(pageable);
+        return userrepo.findAllWithDetails(pageable);
     }
 
     private UsersResource realmUsers() {

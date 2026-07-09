@@ -52,13 +52,7 @@ public class BankAccountServiceImpl implements BankAccountService {
         account.setUpdatedAt(now);
         account = bankAccountRepository.save(account);
 
-        return BankAccountResponse.builder()
-                .id(account.getId())
-                .iban(account.getIban())
-                .balance(account.getBalance())
-                .status(status.getName())
-                .openingDate(account.getOpeningDate())
-                .build();
+        return toResponse(account);
     }
 
     @Override
@@ -78,13 +72,7 @@ public class BankAccountServiceImpl implements BankAccountService {
         account.setUpdatedAt(LocalDateTime.now());
         account = bankAccountRepository.save(account);
 
-        return BankAccountResponse.builder()
-                .id(account.getId())
-                .iban(account.getIban())
-                .balance(account.getBalance())
-                .status(nuovoStato.getName())
-                .openingDate(account.getOpeningDate())
-                .build();
+        return toResponse(account);
     }
 
     @Override
@@ -106,13 +94,7 @@ public class BankAccountServiceImpl implements BankAccountService {
         account.setUpdatedAt(LocalDateTime.now());
         account = bankAccountRepository.save(account);
 
-        return BankAccountResponse.builder()
-                .id(account.getId())
-                .iban(account.getIban())
-                .balance(account.getBalance())
-                .status(chiuso.getName())
-                .openingDate(account.getOpeningDate())
-                .build();
+        return toResponse(account);
     }
 
     @Override
@@ -131,5 +113,15 @@ public class BankAccountServiceImpl implements BankAccountService {
 
     private String generaIban() {
         return "IT" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
+    }
+
+    private BankAccountResponse toResponse(BankAccount account) {
+        return BankAccountResponse.builder()
+                .id(account.getId())
+                .iban(account.getIban())
+                .balance(account.getBalance())
+                .status(account.getStatus().getName())
+                .openingDate(account.getOpeningDate())
+                .build();
     }
 }

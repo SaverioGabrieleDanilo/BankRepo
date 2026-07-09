@@ -24,6 +24,7 @@ public class AccountLimitsServiceImpl implements AccountLimitsService {
     private final AuthorizationFacade authorizationFacade;
 
     @Override
+    @Transactional
     public AccountLimitsResponse getLimiti(Long accountId, String keycloakId, boolean isEmployee) {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
