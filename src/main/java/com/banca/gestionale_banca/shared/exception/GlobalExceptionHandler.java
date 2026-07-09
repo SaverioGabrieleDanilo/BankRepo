@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ExternalServiceException.class)
     public ResponseEntity<Map<String, Object>> handleExternalService(ExternalServiceException e) {
         log.error("Errore servizio esterno: {}", e.getMessage(), e.getCause());
-        return body(HttpStatus.BAD_GATEWAY, e.getMessage());
+        return body(HttpStatus.BAD_GATEWAY, e.getPublicMessage());
     }
 
     @ExceptionHandler(BusinessRuleException.class)
