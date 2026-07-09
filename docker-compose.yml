@@ -32,6 +32,8 @@ services:
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-root}
     ports:
       - "9090:9090"
+    volumes:
+      - ./keycloak/themes:/opt/keycloak/themes
     command: start-dev
     depends_on:
       postgres:

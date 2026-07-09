@@ -1,0 +1,441 @@
+/*
+ * Tema di login Keycloak allineato al frontend Angular (repo BankRepo-front).
+ * Colori/font/spaziature presi da src/styles/_tokens.scss (valori reali, non
+ * placeholder). Struttura di login.component.html/scss e login-form.component.html/scss.
+ *
+ * Le classi qui sotto (.login-header, .login-card, .login-form__*, ecc.) sono
+ * applicate agli elementi reali di Keycloak tramite la rimappatura in
+ * theme.properties (kcHeaderClass, kcFormCardClass, kcInputClass, ...) — non e'
+ * markup nuovo, sono gli stessi <input>/<label>/<button> del form Keycloak.
+ *
+ * Icone: font "Material Symbols Outlined" (Google Fonts, link in template.ftl),
+ * stessa libreria e stessa tecnica a legatura testuale usata in Angular
+ * (<span class="material-symbols-outlined">person</span> diventa qui
+ * content: "person" con font-family sul pseudo-elemento).
+ */
+
+:root {
+    /* --- Colori principali (tokens.scss) --- */
+    --color-primary: #000666;
+    --color-on-primary: #ffffff;
+    --color-primary-container: #1a237e;
+    --color-on-primary-container: #8690ee;
+    --color-primary-fixed-dim: #bdc2ff;
+
+    --color-secondary: #2b5bb5;
+
+    --color-background: #f9f9f9;
+    --color-on-background: #1a1c1c;
+    --color-surface: #f9f9f9;
+    --color-on-surface: #1a1c1c;
+    --color-surface-container: #eeeeee;
+    --color-on-surface-variant: #454652;
+
+    --color-outline: #767683;
+    --color-outline-variant: #c6c5d4;
+
+    --color-error: #ba1a1a;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #93000a;
+
+    /* --- Spaziature --- */
+    --margin-mobile: 16px;
+
+    /* --- Font size (tokens.scss) --- */
+    --font-headline-md: 28px;
+    --font-title-lg: 22px;
+    --font-title-md: 16px;
+    --font-body-md: 14px;
+    --font-label-lg: 14px;
+    --font-label-md: 12px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--color-background);
+    color: var(--color-on-background);
+    /* tokens.scss non definisce una font-family: stack di sistema come default
+       ragionevole finche' il team non ne conferma una esplicita. */
+    font-family: Roboto, "Segoe UI", Arial, sans-serif;
+    margin: 0;
+}
+
+.material-symbols-outlined {
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+/* ============ STRUTTURA DI PAGINA (kcLoginClass) ============ */
+.login-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+}
+
+/* ============ HEADER / BRANDING (kcHeaderClass) ============ */
+.login-header {
+    width: 100%;
+    background-color: var(--color-primary-container);
+    color: var(--color-on-primary);
+    min-height: 288px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    padding: 0 var(--margin-mobile);
+    text-align: center;
+}
+
+.login-header__content {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.login-header__brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.login-header__logo {
+    font-size: 36px;
+    color: var(--color-primary-fixed-dim);
+    font-variation-settings: "FILL" 1;
+}
+
+.login-header__title {
+    font-size: var(--font-headline-md);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    margin: 0;
+}
+
+.login-header__subtitle {
+    font-size: var(--font-body-md);
+    color: var(--color-on-primary-container);
+    max-width: 280px;
+    margin: 0;
+}
+
+.login-header__back {
+    position: absolute;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: transform .1s ease, background-color .2s ease;
+    top: 16px;
+    left: 16px;
+}
+
+.login-header__back-icon {
+    color: var(--color-on-primary);
+}
+
+.login-header__back:active {
+    transform: scale(.92);
+}
+
+.login-header__back:hover {
+    background-color: rgba(255, 255, 255, .1);
+}
+
+@media (min-width: 768px) {
+    .login-header__back {
+        top: 24px;
+        left: 24px;
+    }
+}
+
+/* ============ CONTENITORE CENTRALE (login-main) ============ */
+.login-main {
+    width: 100%;
+    max-width: 448px;
+    margin-top: -64px;
+    padding-left: var(--margin-mobile);
+    padding-right: var(--margin-mobile);
+    padding-bottom: var(--margin-mobile);
+    position: relative;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* ============ CARD DI LOGIN (kcFormCardClass = "login-card glass-panel") ============ */
+.login-card {
+    width: 100%;
+    background-color: var(--color-surface);
+    border-radius: 12px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, .1), 0 4px 6px -2px rgba(0, 0, 0, .05);
+    border: 1px solid var(--color-outline-variant);
+    padding: 32px;
+    margin-bottom: 24px;
+}
+
+/* kcFormHeaderClass */
+.login-card__header {
+    margin: 0;
+}
+
+/* Titolo (<h1 id="kc-page-title">, testo da messages_en.properties: loginAccountTitle) */
+#kc-page-title {
+    font-size: var(--font-title-lg);
+    color: var(--color-primary);
+    margin-top: 0;
+    margin-bottom: 24px;
+    font-weight: 500;
+}
+
+/* ============ FORM (id/name di Keycloak invariati: username, password, rememberMe, kc-login) ============ */
+#kc-form-login {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* kcFormGroupClass */
+.login-form__field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+    transition: transform .2s ease-in-out;
+}
+
+.login-form__field-group:focus-within {
+    transform: scale(1.01);
+}
+
+/* kcLabelClass */
+.login-form__label {
+    font-size: var(--font-label-lg);
+    color: var(--color-on-surface-variant);
+    display: block;
+}
+
+/* kcInputGroup: wrapper generato da Keycloak solo attorno al campo password
+   (input + bottone mostra/nascondi) */
+.login-form__input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+/* kcInputClass, applicata sia a #username sia a #password */
+.login-form__input {
+    width: 100%;
+    background-color: var(--color-surface-container);
+    border: 1px solid var(--color-outline-variant);
+    border-radius: 8px;
+    padding: 12px 16px 12px 40px;
+    font-size: var(--font-body-md);
+    color: var(--color-on-surface);
+    outline: none;
+    transition: all .2s ease;
+}
+
+.login-form__input:focus {
+    border-color: var(--color-secondary);
+    box-shadow: 0 0 0 1px var(--color-secondary);
+}
+
+#password {
+    padding-right: 48px;
+}
+
+/* Icone nei campi: stessa tecnica a legatura del font usata in Angular
+   (<span class="material-symbols-outlined">person</span>), qui via ::before. */
+.login-form__field-group:has(> #username)::before,
+.login-form__input-wrapper:has(> #password)::before {
+    font-family: "Material Symbols Outlined";
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    color: var(--color-outline);
+    pointer-events: none;
+    font-size: 20px;
+}
+
+.login-form__field-group:has(> #username)::before {
+    content: "person";
+}
+
+.login-form__input-wrapper:has(> #password)::before {
+    content: "lock";
+}
+
+/* kcInputErrorMessageClass */
+.login-form__error {
+    font-size: var(--font-label-md);
+    color: var(--color-error);
+}
+
+/* kcFormPasswordVisibilityButtonClass (bottone mostra/nascondi password, gia'
+   funzionante via passwordVisibility.js ereditato dal tema base: qui solo posizione) */
+.login-form__toggle-visibility {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-outline);
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-form__toggle-visibility:hover {
+    color: var(--color-primary);
+}
+
+/* kcFormSettingClass (riga con "Remember me" + "Forgot password?") */
+.login-form__utilities-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+}
+
+#kc-form-options .checkbox label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: var(--font-label-md);
+    color: var(--color-on-surface-variant);
+}
+
+#kc-form-options input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 1px solid var(--color-outline-variant);
+    cursor: pointer;
+    accent-color: var(--color-primary);
+}
+
+/* kcFormOptionsWrapperClass (link "Forgot password?") */
+.login-form__utilities a {
+    font-size: var(--font-label-md);
+    color: var(--color-secondary);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.login-form__utilities a:hover {
+    text-decoration: underline;
+}
+
+/* Bottone submit: kcButtonClass + kcButtonPrimaryClass = "login-form__submit btn-primary" */
+.login-form__submit.btn-primary {
+    width: 100%;
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    font-size: var(--font-title-md);
+    font-weight: 500;
+    padding: 16px;
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, .1);
+    cursor: pointer;
+    transition: all .2s cubic-bezier(.4, 0, .2, 1);
+}
+
+.login-form__submit.btn-primary:active {
+    transform: scale(.95);
+}
+
+.login-form__submit.btn-primary:hover {
+    opacity: .9;
+}
+
+/* ============ ALERT ERRORI (kcAlertClass) ============ */
+.login-alert {
+    background-color: var(--color-error-container);
+    color: var(--color-on-error-container);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--font-body-md);
+}
+
+.login-alert__title {
+    font-weight: 500;
+}
+
+/* ============ LINK REGISTRAZIONE (kcSignUpClass) ============ */
+.login-registration {
+    text-align: center;
+    margin-top: 16px;
+    font-size: var(--font-label-md);
+    color: var(--color-on-surface-variant);
+}
+
+.login-registration a {
+    color: var(--color-secondary);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.login-registration a:hover {
+    text-decoration: underline;
+}
+
+/* ============ TRUST INDICATOR ============ */
+.trust-indicator {
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.trust-indicator__secure {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    opacity: .6;
+    color: var(--color-on-surface);
+}
+
+.trust-indicator__secure .material-symbols-outlined {
+    font-size: 16px;
+}
+
+.trust-indicator__secure-text {
+    font-size: var(--font-label-md);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+}
+
+.trust-indicator__divider {
+    height: 1px;
+    width: 48px;
+    background-color: var(--color-outline-variant);
+}
+
+.trust-indicator__board {
+    font-size: var(--font-label-md);
+    color: rgba(69, 70, 82, .7);
+    text-align: center;
+    font-style: italic;
+    margin: 0;
+}
