@@ -77,6 +77,9 @@ public class UserController {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
         boolean isOwner = jwt.getSubject().equals(utente.getKeycloakId());
 
+        if (!isAdmin && request.getRole() != null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo un ADMIN può modificare il ruolo");
+        }
         if (!isAdmin && !isOwner) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato a modificare questo utente");
         }
