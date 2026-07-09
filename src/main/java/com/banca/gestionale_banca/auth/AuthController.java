@@ -1,6 +1,8 @@
 package com.banca.gestionale_banca.auth;
 
 import com.banca.gestionale_banca.user.dto.LoginRequest;
+import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +15,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @RestController
@@ -21,7 +25,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthController {
 
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+    private static final long LOCKOUT_MINUTES = 15;
+
     private final RestClient restClient;
+    private final UserRepository userRepository;
 
 
     @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
@@ -35,6 +43,13 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
+
+        Optional<Utente> utenteOpt = userRepository.findByUsername(loginRequest.getUsername());
+
+        if (utenteOpt.isPresent() && isBloccato(utenteOpt.get())) {
+            return ResponseEntity.status(HttpStatus.LOCKED)
+                    .body("Account temporaneamente bloccato per troppi tentativi falliti. Riprova più tardi.");
+        }
 
         String tokenUrl = issuerUri + "/protocol/openid-connect/token";
 
@@ -53,12 +68,18 @@ public class AuthController {
                     .body(params)
                     .retrieve()
                     .body(Map.class);
+
+            utenteOpt.ifPresent(this::resetTentativiFalliti);
+
             return ResponseEntity.ok(body);
 
         } catch (RestClientResponseException e) {
 
             log.error("Login fallito su Keycloak. Status: {} - Risposta: {}",
                     e.getStatusCode(), e.getResponseBodyAsString());
+
+            utenteOpt.ifPresent(this::registraTentativoFallito);
+
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body("Login fallito: credenziali non valide");
 
@@ -66,6 +87,27 @@ public class AuthController {
             log.error("Errore imprevisto durante il login: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Servizio di autenticazione non disponibile");
+        }
+    }
+
+    private boolean isBloccato(Utente utente) {
+        return utente.getLockedUntil() != null && utente.getLockedUntil().isAfter(LocalDateTime.now());
+    }
+
+    private void registraTentativoFallito(Utente utente) {
+        int tentativi = utente.getFailedLoginAttempts() + 1;
+        utente.setFailedLoginAttempts(tentativi);
+        if (tentativi >= MAX_FAILED_ATTEMPTS) {
+            utente.setLockedUntil(LocalDateTime.now().plusMinutes(LOCKOUT_MINUTES));
+        }
+        userRepository.save(utente);
+    }
+
+    private void resetTentativiFalliti(Utente utente) {
+        if (utente.getFailedLoginAttempts() > 0 || utente.getLockedUntil() != null) {
+            utente.setFailedLoginAttempts(0);
+            utente.setLockedUntil(null);
+            userRepository.save(utente);
         }
     }
 }
