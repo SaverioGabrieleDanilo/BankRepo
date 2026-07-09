@@ -86,6 +86,9 @@ class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse eseguiBonifico(TransferRequest request, String keycloakId, boolean isEmployee) {
+        if(request.getSourceIban().equals(request.getTargetIban())){
+            throw new ConflictException("Il conto di origine e quello di destinazione non possono coincidere");
+        }
         Map<String, BankAccount> lockedAccounts = lockAccountsInOrder(request.getSourceIban(), request.getTargetIban());
         BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
         BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
@@ -118,6 +121,9 @@ class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse eseguiGiroconto(GirocontoRequest request, String keycloakId, boolean isEmployee) {
+        if (request.getSourceIban().equals(request.getTargetIban())) {
+            throw new ConflictException("Il conto di origine e quello di destinazione non possono coincidere");
+        }
         Map<String, BankAccount> lockedAccounts = lockAccountsInOrder(request.getSourceIban(), request.getTargetIban());
         BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
         BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
