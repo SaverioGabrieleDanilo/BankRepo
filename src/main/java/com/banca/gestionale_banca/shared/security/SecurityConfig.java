@@ -1,5 +1,6 @@
 package com.banca.gestionale_banca.shared.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -21,6 +22,13 @@ import java.util.stream.Collectors;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    // Elenco esplicito, separato da virgole, degli origin autorizzati a chiamare l'API in
+    // cross-origin. In sviluppo punta al dev server Angular di default (localhost:4200); in
+    // produzione va sovrascritto con CORS_ALLOWED_ORIGINS impostando il/i dominio/i reali —
+    // niente più wildcard su "qualunque porta di localhost".
+    @Value("${app.cors.allowed-origins}")
+    private List<String> allowedOrigins;
 
     @Bean
     public SecurityFilterChain protectedEndpoints(HttpSecurity http) throws Exception {
@@ -44,9 +52,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // Qualunque porta locale (dev server Angular, proxy/preview): da restringere a un dominio
-        // fisso quando ci sarà un ambiente di produzione
-        configuration.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+        configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
