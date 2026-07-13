@@ -245,35 +245,48 @@ class UserServiceImpl implements UserService {
     }
 
     @Override
+    public Utente cambiaStatoRegistrazione(Long id, String statoNome) {
+        Utente u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        RegistrationStatus nuovoStato = registrationStatusRepository.findByName(statoNome)
+                .orElseThrow(() -> new ResourceNotFoundException("Stato di registrazione '" + statoNome + "' non valido"));
+
+        u.setRegistrationStatus(nuovoStato);
+        userrepo.save(u);
+        // Vedi nota in modificaUtente: ri-fetch con JOIN FETCH dopo il save
+        // per evitare LazyInitializationException sull'entity restituita.
+        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+    }
+
+    @Override
     public Page<Utente> getUtentiPaginati(Pageable pageable) {
         return userrepo.findAllWithDetails(pageable);
     }
 
+    // Crea solo le righe mancanti (non "solo se la tabella e' vuota"): un
+    // count()==0 a livello di tabella lascerebbe 'ADMIN' permanentemente
+    // assente se la tabella ha gia' qualche riga da un seed precedente
+    // incompleto, facendo fallire DefaultAdminBootstrapper piu' avanti.
     @Override
     @Transactional
     public void seedDatiBase() {
-        if (roleRepository.count() == 0) {
-            roleRepository.saveAll(List.of(
-                    new Role(Ruoli.ADMIN),
-                    new Role(Ruoli.EMPLOYEE),
-                    new Role(Ruoli.CUSTOMER)
-            ));
-        }
+        creaSeMancante(roleRepository::findByName, roleRepository::save, Role::new,
+                Ruoli.ADMIN, Ruoli.EMPLOYEE, Ruoli.CUSTOMER);
 
-        if (userStatusRepository.count() == 0) {
-            userStatusRepository.saveAll(List.of(
-                    new UserStatus(StatiUtente.ATTIVO),
-                    new UserStatus(StatiUtente.SOSPESO),
-                    new UserStatus(StatiUtente.CHIUSO)
-            ));
-        }
+        creaSeMancante(userStatusRepository::findByName, userStatusRepository::save, UserStatus::new,
+                StatiUtente.ATTIVO, StatiUtente.SOSPESO, StatiUtente.CHIUSO);
 
-        if (registrationStatusRepository.count() == 0) {
-            registrationStatusRepository.saveAll(List.of(
-                    new RegistrationStatus(StatiRegistrazione.PENDING),
-                    new RegistrationStatus(StatiRegistrazione.APPROVED),
-                    new RegistrationStatus(StatiRegistrazione.REJECTED)
-            ));
+        creaSeMancante(registrationStatusRepository::findByName, registrationStatusRepository::save, RegistrationStatus::new,
+                StatiRegistrazione.PENDING, StatiRegistrazione.APPROVED, StatiRegistrazione.REJECTED);
+    }
+
+    private <T> void creaSeMancante(java.util.function.Function<String, Optional<T>> findByName,
+                                     java.util.function.Function<T, T> save,
+                                     java.util.function.Function<String, T> factory,
+                                     String... nomi) {
+        for (String nome : nomi) {
+            if (findByName.apply(nome).isEmpty()) {
+                save.apply(factory.apply(nome));
+            }
         }
     }
 
