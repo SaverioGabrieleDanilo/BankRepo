@@ -17,6 +17,7 @@ import com.banca.gestionale_banca.user.dto.RegisterRequest;
 import com.banca.gestionale_banca.user.dto.UpdateUserRequest;
 import com.banca.gestionale_banca.user.dto.UserResponse;
 import com.banca.gestionale_banca.user.dto.UserStatusRequest;
+import com.banca.gestionale_banca.user.dto.RegistrationStatusRequest;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.user.model.Utente;
 import com.banca.gestionale_banca.user.service.UserService;
@@ -98,5 +99,11 @@ public class UserController {
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<UserResponse> cambiaStatoUtente(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request) {
         return ResponseEntity.ok(UserResponse.from(userService.cambiaStatoUtente(id, request.getStato())));
+    }
+
+    @PatchMapping("/{id}/registration-status")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    public ResponseEntity<UserResponse> cambiaStatoRegistrazione(@PathVariable Long id, @Valid @RequestBody RegistrationStatusRequest request) {
+        return ResponseEntity.ok(UserResponse.from(userService.cambiaStatoRegistrazione(id, request.getRegistrationStatus())));
     }
 }

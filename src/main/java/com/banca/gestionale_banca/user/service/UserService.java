@@ -15,6 +15,7 @@ public interface UserService {
     Utente modificaUtente(Long id, UpdateUserRequest request);
     void disattivaUtente(Long id);
     Utente cambiaStatoUtente(Long id, String statoNome);
+    Utente cambiaStatoRegistrazione(Long id, String statoNome);
     Page<Utente> getUtentiPaginati(Pageable pageable);
 
     /**
