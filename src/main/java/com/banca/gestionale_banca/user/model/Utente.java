@@ -56,11 +56,6 @@ public class Utente {
     @JoinColumn(name = "registration_status_id", nullable = false)
     private RegistrationStatus registrationStatus;
 
-    @Column(nullable = false)
-    private Integer failedLoginAttempts = 0;
-
-    private LocalDateTime lockedUntil;
-
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

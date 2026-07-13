@@ -54,10 +54,17 @@ dalla welcome page.
    (`length(8) and digits(1) and upperCase(1) and lowerCase(1) and
    specialChars(1) and notUsername`) — nessuna azione manuale richiesta qui,
    è idempotente e si riallinea ad ogni riavvio se qualcuno la modifica a mano.
-5. Crea client `banca-client` (login utenti finali, grant `password`/ROPC usato
-   da `/api/auth/login`) con `Client authentication` ON, `Direct access
-   grants` enabled
-6. Copia il client secret (tab "Credentials") in `.env` → `KEYCLOAK_CLIENT_SECRET`
+5. Crea client `banca-spa` (login utenti finali dal frontend Angular): client
+   **pubblico** (`Client authentication` OFF), `Standard flow` enabled,
+   `Direct access grants` OFF, `Valid redirect URIs` → `http://localhost:4200/*`.
+   Il login vero e proprio è Authorization Code + PKCE via `keycloak-js`
+   (`KeycloakService` nel frontend): il browser viene reindirizzato sulla
+   pagina di login di Keycloak (tema `banca-theme`), l'app non vede mai la
+   password. **Il backend non ha bisogno di questo client** — nessun secret da
+   copiare in `.env`.
+6. **Brute-force protection del realm**: viene impostata **automaticamente
+   all'avvio dell'app** da `KeycloakRealmInitializer` (blocco di 15 minuti
+   dopo 5 tentativi falliti) — nessuna azione manuale richiesta.
 7. Crea un **secondo client** `banca-service` (service account, usato dal
    backend per creare/gestire utenti — NON usare `admin-cli`/realm `master`
    per questo):
@@ -69,6 +76,13 @@ dalla welcome page.
 
 A questo punto `.env` ha tutti i valori richiesti da `application.properties`
 (vedi `.env.example` per l'elenco completo e i commenti su ciascuna variabile).
+
+> Per testare l'API a mano (Postman, `test-requests.http`) senza passare dal
+> browser, crea un client separato **solo per questo uso** (es. `banca-cli`,
+> confidential, `Direct access grants` ON) e ottieni il token chiamando
+> **direttamente Keycloak** — `POST /realms/gestionale-banca/protocol/openid-connect/token`
+> con `grant_type=password` — mai il backend applicativo, che dal login
+> ROPC non è più raggiungibile per design.
 
 ## Bootstrap del primo utente ADMIN
 

@@ -27,6 +27,12 @@ public class KeycloakRealmInitializer implements CommandLineRunner {
     private static final String PASSWORD_POLICY =
             "length(8) and digits(1) and upperCase(1) and lowerCase(1) and specialChars(1) and notUsername";
 
+    // Stessa soglia del vecchio lockout applicativo in AuthController (rimosso: il
+    // login e' ora Authorization Code + PKCE via keycloak-js, quindi e' Keycloak
+    // stesso, non piu' il nostro backend, a dover applicare il blocco).
+    private static final int FAILURE_FACTOR = 5;
+    private static final int WAIT_SECONDS = 15 * 60;
+
     private final Keycloak keycloak;
 
     @Override
@@ -35,6 +41,7 @@ public class KeycloakRealmInitializer implements CommandLineRunner {
 
         creaRuoliMancanti(realmResource.roles());
         allineaPasswordPolicy(realmResource);
+        allineaBruteForceProtection(realmResource);
     }
 
     private void creaRuoliMancanti(RolesResource rolesResource) {
@@ -56,6 +63,26 @@ public class KeycloakRealmInitializer implements CommandLineRunner {
             realm.setPasswordPolicy(PASSWORD_POLICY);
             realmResource.update(realm);
             log.info("Password policy del realm '{}' allineata a: {}", REALM, PASSWORD_POLICY);
+        }
+    }
+
+    private void allineaBruteForceProtection(RealmResource realmResource) {
+        RealmRepresentation realm = realmResource.toRepresentation();
+        boolean giaAllineato = Boolean.TRUE.equals(realm.isBruteForceProtected())
+                && Integer.valueOf(FAILURE_FACTOR).equals(realm.getFailureFactor())
+                && Integer.valueOf(WAIT_SECONDS).equals(realm.getWaitIncrementSeconds())
+                && Integer.valueOf(WAIT_SECONDS).equals(realm.getMaxFailureWaitSeconds());
+
+        if (!giaAllineato) {
+            realm.setBruteForceProtected(true);
+            realm.setPermanentLockout(false);
+            realm.setFailureFactor(FAILURE_FACTOR);
+            realm.setWaitIncrementSeconds(WAIT_SECONDS);
+            realm.setMaxFailureWaitSeconds(WAIT_SECONDS);
+            realm.setMinimumQuickLoginWaitSeconds(WAIT_SECONDS);
+            realmResource.update(realm);
+            log.info("Brute-force protection del realm '{}' allineata: blocco {} min dopo {} tentativi falliti",
+                    REALM, WAIT_SECONDS / 60, FAILURE_FACTOR);
         }
     }
 }

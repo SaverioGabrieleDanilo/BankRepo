@@ -32,3 +32,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# log locali di run-local.ps1
+*.log
