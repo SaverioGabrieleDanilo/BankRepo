@@ -27,61 +27,74 @@ cd gestionale-banca
 cp .env.example .env
 ```
 
-Apri `.env` e valorizza subito `DB_PASSWORD`/`POSTGRES_PASSWORD` (qualunque
-valore locale va bene, es. `postgres`). `KEYCLOAK_CLIENT_SECRET` e
-`KEYCLOAK_SERVICE_CLIENT_SECRET` restano vuoti per ora: si ottengono nel passo
-successivo. `CORS_ALLOWED_ORIGINS` può restare vuoto (default `localhost:4200`).
+`.env.example` ha già valori di sviluppo pronti all'uso per tutto (Postgres,
+Keycloak, bootstrap del primo ADMIN) — non c'è nulla da modificare per partire
+in locale. Vedi i commenti nel file se vuoi capire cosa fa ciascuna variabile,
+o se questo ambiente deve mai smettere di essere "solo sul mio laptop".
 
 ```bash
 # 2. Avvia PostgreSQL + Keycloak
 docker compose up -d
 ```
 
-Attendi che entrambi i container siano `healthy`/avviati (`docker compose ps`;
-Keycloak in `start-dev` impiega ~15-20s dal primo avvio).
+Al primo avvio, Keycloak importa da solo il realm `gestionale-banca` da
+`keycloak/realm-import/gestionale-banca-realm.json` (flag `--import-realm` in
+`docker-compose.yml`): ruoli (`ADMIN`/`EMPLOYEE`/`CUSTOMER`), password policy,
+brute-force protection, e i client `banca-spa` (frontend, pubblico/PKCE),
+`banca-service` (backend, service account) e `banca-cli` (solo per test manuali,
+vedi sotto) — **zero click in Admin Console**. Attendi che entrambi i
+container siano `healthy`/avviati (`docker compose ps`; Keycloak impiega
+~15-20s dal primo avvio).
 
-## Setup Keycloak (una tantum, per ogni nuovo ambiente/volume Docker)
+```bash
+# 3. Avvia l'app — vedi sezione "Avvio dell'app" sotto
+.\run-local.ps1
+```
 
-L'admin di bootstrap di Keycloak (`admin`/`admin`, definito in
-`docker-compose.yml`) esiste già al primo avvio — **non** va creato a mano
-dalla welcome page.
+Al primo avvio (con `BOOTSTRAP_DEFAULT_ADMIN=true`, già impostato in
+`.env.example`) `DefaultAdminBootstrapper` crea da solo il primo utente ADMIN
+— sia su Keycloak sia sul DB applicativo, stesso codice che usa
+`POST /api/utenti/registra` — con `username=admin`, `password=AdminBanca#2026`.
+Da lì in poi login e `POST /api/utenti/admin/crea` funzionano normalmente per
+creare altri utenti.
 
-1. Vai su http://localhost:9090/admin → login con `admin`/`admin`
-2. Crea realm: `gestionale-banca`
-3. Crea realm roles: `ADMIN`, `EMPLOYEE`, `CUSTOMER`
-4. **Password policy del realm**: viene impostata **automaticamente all'avvio
-   dell'app** da `KeycloakRealmInitializer`
-   (`length(8) and digits(1) and upperCase(1) and lowerCase(1) and
-   specialChars(1) and notUsername`) — nessuna azione manuale richiesta qui,
-   è idempotente e si riallinea ad ogni riavvio se qualcuno la modifica a mano.
-5. Crea client `banca-client` (login utenti finali, grant `password`/ROPC usato
-   da `/api/auth/login`) con `Client authentication` ON, `Direct access
-   grants` enabled
-6. Copia il client secret (tab "Credentials") in `.env` → `KEYCLOAK_CLIENT_SECRET`
-7. Crea un **secondo client** `banca-service` (service account, usato dal
-   backend per creare/gestire utenti — NON usare `admin-cli`/realm `master`
-   per questo):
-   - `Client authentication` ON, `Service accounts roles` ON, tutti gli altri
-     flow OFF
-   - Tab "Service accounts roles" → assegna i client role `manage-users` e
-     `manage-realm` del client `realm-management`
-   - Copia il client secret in `.env` → `KEYCLOAK_SERVICE_CLIENT_SECRET`
+**Tre comandi, niente Admin Console, niente SQL a mano.** Le sezioni sotto
+spiegano cosa succede dietro le quinte e come farlo a mano se serve (volume
+Docker preesistente, ambiente condiviso, debug).
 
-A questo punto `.env` ha tutti i valori richiesti da `application.properties`
-(vedi `.env.example` per l'elenco completo e i commenti su ciascuna variabile).
+## Setup Keycloak — dettaglio/fallback manuale
 
-## Bootstrap del primo utente ADMIN
+Se preferisci non fidarti dell'import automatico (es. un volume Docker già
+esistente, dove `--import-realm` salta il realm perché esiste già), questi
+sono gli stessi passi fatti a mano dall'Admin Console
+(http://localhost:9090/admin, `admin`/`admin`):
 
-Non esiste un utente ADMIN precaricato: `DatabaseInitializer` inizializza solo
-le tabelle di lookup (ruoli, stati), non utenti applicativi. L'endpoint
-`POST /api/utenti/admin/crea` — l'unico modo per creare un utente con ruolo
-diverso da CUSTOMER — richiede già un token ADMIN, quindi il primissimo ADMIN
-va creato manualmente, **una sola volta per ambiente**:
+1. Crea realm `gestionale-banca`, roles `ADMIN`/`EMPLOYEE`/`CUSTOMER`
+2. Password policy e brute-force protection: si riallineano da sole
+   all'avvio dell'app (`KeycloakRealmInitializer`, idempotente) anche se il
+   realm è stato creato a mano — nessuna azione richiesta qui
+3. Client `banca-spa`: pubblico (`Client authentication` OFF), `Standard
+   flow` ON, `Direct access grants` OFF, redirect URI `http://localhost:4200/*`
+4. Client `banca-service`: confidential, `Service accounts roles` ON, tab
+   "Service accounts roles" → assegna `manage-users` e `manage-realm` del
+   client `realm-management` → copia il secret in `.env` →
+   `KEYCLOAK_SERVICE_CLIENT_SECRET`
+5. (Opzionale) Client `banca-cli` per test manuali via Postman/
+   `test-requests.http`: confidential, `Direct access grants` ON — il token
+   si ottiene chiamando **direttamente Keycloak**
+   (`POST /realms/gestionale-banca/protocol/openid-connect/token`), mai il
+   backend applicativo, che dal login ROPC non è più raggiungibile per design
+
+## Bootstrap del primo utente ADMIN — dettaglio/fallback manuale
+
+Se `BOOTSTRAP_DEFAULT_ADMIN` è `false` (default fuori da `.env.example`, es.
+in un ambiente condiviso) va fatto a mano, **una sola volta per ambiente**,
+perché `POST /api/utenti/admin/crea` richiede già un token ADMIN:
 
 1. **Su Keycloak** (Admin Console → realm `gestionale-banca` → Users → Add
-   user): crea l'utente (es. `admin`/email a piacere), scheda Credentials →
-   imposta la password (conforme alla password policy del punto 4 sopra,
-   `Temporary` OFF), scheda Role mapping → assegna il realm role `ADMIN`.
+   user): crea l'utente, scheda Credentials → imposta la password (conforme
+   alla password policy, `Temporary` OFF), scheda Role mapping → assegna il
+   realm role `ADMIN`.
 2. **Sul database applicativo**: inserisci la riga corrispondente in `users`,
    con `keycloak_id` uguale all'ID dell'utente appena creato su Keycloak
    (visibile nell'URL della sua pagina utente in Admin Console) e `role_id`
@@ -91,17 +104,17 @@ va creato manualmente, **una sola volta per ambiente**:
    -- id ruolo/stato: SELECT id, name FROM roles; / user_statuses; / registration_statuses;
    INSERT INTO users (first_name, last_name, date_of_birth, email, username,
                        role_id, status_id, registration_status_id,
-                       failed_login_attempts, created_at, keycloak_id)
+                       created_at, keycloak_id)
    VALUES ('Super', 'Admin', '1990-01-01', 'admin@example.com', 'admin',
-           1, 1, 2, 0, now(), '<keycloak-id-copiato-sopra>');
+           1, 1, 2, now(), '<keycloak-id-copiato-sopra>');
    ```
 
    (`role_id=1` → ADMIN, `status_id=1` → ATTIVO, `registration_status_id=2` →
    APPROVED, assumendo il seed di default di `DatabaseInitializer`.)
 
 L'app e Keycloak restano così sempre coerenti (nessun utente "solo Keycloak" o
-"solo DB"), stesso pattern che `UserServiceImpl.creaUtente` applica in
-automatico per tutti gli utenti creati via API dopo questo bootstrap iniziale.
+"solo DB"), stesso pattern che `UserServiceImpl.creaUtente`/
+`DefaultAdminBootstrapper` applicano in automatico per tutti gli altri utenti.
 
 ## Avvio dell'app
 
@@ -134,12 +147,12 @@ wildcard è accettato, solo origin esatti.
 
 ## Sicurezza account: lockout dopo tentativi falliti
 
-`AuthController` blocca un account per 15 minuti dopo 5 tentativi di login
-falliti consecutivi (`failed_login_attempts`/`locked_until` su `users`,
-verificati **prima** di contattare Keycloak). Ogni tentativo fallito durante il
-blocco estende la finestra di altri 15 minuti. Il contatore si azzera al primo
-login riuscito. La risposta è `423 Locked`, distinta dal `401` di credenziali
-errate, per non confondere le due situazioni lato client.
+Il login non passa più dal backend applicativo (vedi sopra, Authorization
+Code + PKCE), quindi il lockout è applicato direttamente da **Keycloak**:
+`KeycloakRealmInitializer` configura all'avvio dell'app la brute-force
+protection del realm (blocco di 15 minuti dopo 5 tentativi falliti
+consecutivi), idempotente e riallineata ad ogni riavvio. Nessuna azione
+manuale richiesta, nessun campo applicativo da gestire lato `users`.
 
 ## Tema di login custom
 
@@ -185,7 +198,6 @@ Collezioni pronte all'uso, con body reali e richieste concatenate
 
 | Endpoint | Metodo | Auth | Descrizione |
 |----------|--------|------|-------------|
-| `/api/auth/login` | POST | No | Login (proxy verso Keycloak, grant `password`); lockout dopo 5 tentativi falliti |
 | `/api/utenti/registra` | POST | No | Registrazione self-service (ruolo sempre CUSTOMER) |
 | `/api/utenti/admin/crea` | POST | ADMIN | Crea utente con ruolo esplicito (ADMIN/EMPLOYEE/CUSTOMER) |
 | `/api/utenti/{id}` | GET | ADMIN | Dettaglio utente |

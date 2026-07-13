@@ -1,0 +1,399 @@
+### gestionale-banca — Richieste API concatenate (VS Code REST Client)
+###
+### Prerequisiti:
+###   1. Container attivi: docker compose up -d (banca-postgres, banca-keycloak)
+###   2. App avviata con: .\run-local.ps1  (NON con mvn spring-boot:run in una shell "vergine",
+###      altrimenti KEYCLOAK_SERVICE_CLIENT_SECRET non viene caricata e il boot fallisce)
+###   3. Estensione VS Code "REST Client" (humao.rest-client) installata
+###
+### Come si usa: apri il file in VS Code, clicca "Send Request" sopra ogni blocco,
+### IN ORDINE dall'alto verso il basso. Ogni richiesta con "# @name X" salva la risposta
+### e le richieste successive la riusano (token, id, iban) tramite {{X.response.body.$.campo}} —
+### non serve copiare nulla a mano.
+###
+### Utente ADMIN di bootstrap (creato il 10/07/2026 perché non ne esisteva ancora uno):
+###   Creato via Keycloak Admin REST API (client admin-cli sul realm "master", credenziali
+###   KC_BOOTSTRAP_ADMIN_USERNAME/PASSWORD del docker-compose) + riga inserita a mano nella
+###   tabella "users" collegata tramite keycloak_id — lo stesso identico pattern che
+###   UserServiceImpl.creaUtente esegue in automatico, qui fatto una tantum per il primo admin
+###   perché l'endpoint /api/utenti/admin/crea richiede già un ADMIN per essere chiamato
+###   (problema dell'uovo e della gallina alla primissima installazione).
+###   Username: admin
+###   Password: AdminBanca#2026
+###   Se vuoi ruotare la password: Keycloak Admin Console (http://localhost:9090) ->
+###   realm gestionale-banca -> Users -> admin -> Credentials -> Reset password.
+
+@baseUrl = http://localhost:8888
+@keycloakTokenUrl = http://localhost:9090/realms/gestionale-banca/protocol/openid-connect/token
+@testClientId = banca-cli
+@testClientSecret = dev-only-banca-cli-secret
+@adminUsername = admin
+@adminPassword = AdminBanca#2026
+@customer1Username = testcustomer1
+@customer1Password = TestCustomer#2026
+@customer2Username = testcustomer2
+@customer2Password = TestCustomer#2026
+
+
+### =========================================================================
+### 1. AUTENTICAZIONE
+### =========================================================================
+### Il login applicativo (POST /api/auth/login, grant password/ROPC) e' stato
+### rimosso: il backend non gestisce piu' credenziali. Il frontend usa
+### Authorization Code + PKCE via keycloak-js (redirect sulla pagina di login
+### di Keycloak). Per ottenere un token da riga di comando/Postman qui sotto
+### si chiama Keycloak DIRETTAMENTE con un client dedicato al testing
+### (banca-cli, vedi README) — mai il backend applicativo.
+
+### 1.1 Login ADMIN — il token viene riusato da tutte le chiamate riservate ad ADMIN
+# @name loginAdmin
+POST {{keycloakTokenUrl}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{testClientId}}&client_secret={{testClientSecret}}&username={{adminUsername}}&password={{adminPassword}}
+
+
+### 1.2 Login con credenziali sbagliate — verifica la brute-force protection del realm.
+### Eseguila 5 volte di fila: al 5° tentativo l'account "admin" viene bloccato 15 minuti
+### (KeycloakRealmInitializer: failureFactor=5, waitIncrementSeconds=900). Ai tentativi
+### successivi Keycloak risponde comunque 401 (non distingue "bloccato" da "credenziali
+### errate" nella risposta, a differenza del vecchio 423 applicativo) ma il login non va
+### più a buon fine finché il lockout non scade.
+POST {{keycloakTokenUrl}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{testClientId}}&client_secret={{testClientSecret}}&username={{adminUsername}}&password=password-sbagliata
+
+
+### =========================================================================
+### 2. REGISTRAZIONE UTENTI (self-service, pubblica — nessun token richiesto)
+### =========================================================================
+
+### 2.1 Registra CUSTOMER 1 — endpoint pubblico, forza sempre il ruolo CUSTOMER
+### lato server (UserServiceImpl.registraUtente), qualsiasi altro campo "role" nel
+### body verrebbe ignorato perché RegisterRequest non possiede quel campo.
+# @name registerCustomer1
+POST {{baseUrl}}/api/utenti/registra
+Content-Type: application/json
+
+{
+  "username": "{{customer1Username}}",
+  "password": "{{customer1Password}}",
+  "firstName": "Test",
+  "lastName": "Uno",
+  "email": "test.uno@example.com",
+  "dateOfBirth": "1992-03-15"
+}
+
+
+### 2.2 Registra CUSTOMER 2 — serve per testare il bonifico verso un intestatario diverso
+# @name registerCustomer2
+POST {{baseUrl}}/api/utenti/registra
+Content-Type: application/json
+
+{
+  "username": "{{customer2Username}}",
+  "password": "{{customer2Password}}",
+  "firstName": "Test",
+  "lastName": "Due",
+  "email": "test.due@example.com",
+  "dateOfBirth": "1995-07-22"
+}
+
+
+### 2.3 Login CUSTOMER 1
+# @name loginCustomer1
+POST {{keycloakTokenUrl}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{testClientId}}&client_secret={{testClientSecret}}&username={{customer1Username}}&password={{customer1Password}}
+
+
+### 2.4 Login CUSTOMER 2
+# @name loginCustomer2
+POST {{keycloakTokenUrl}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id={{testClientId}}&client_secret={{testClientSecret}}&username={{customer2Username}}&password={{customer2Password}}
+
+
+### =========================================================================
+### 3. GESTIONE UTENTI (riservata ADMIN, salvo dove indicato)
+### =========================================================================
+
+### 3.1 [ADMIN] Crea utente con ruolo esplicito — unico modo legittimo per creare
+### un EMPLOYEE o un altro ADMIN dopo il bootstrap iniziale.
+# @name createEmployee
+POST {{baseUrl}}/api/utenti/admin/crea
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "username": "testemployee1",
+  "password": "TestEmployee#2026",
+  "firstName": "Test",
+  "lastName": "Sportello",
+  "email": "test.sportello@example.com",
+  "dateOfBirth": "1985-11-01",
+  "role": "EMPLOYEE"
+}
+
+
+### 3.2 [ADMIN] Dettaglio utente per id
+GET {{baseUrl}}/api/utenti/{{registerCustomer1.response.body.id}}
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+
+
+### 3.3 [ADMIN] Elenco paginato utenti
+GET {{baseUrl}}/api/utenti?page=0&size=10
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+
+
+### 3.4 [CUSTOMER1, proprietario] Modifica dei propri dati (email) — consentito,
+### non tocca il campo "role" quindi passa il secondo controllo di UserController.
+PUT {{baseUrl}}/api/utenti/{{registerCustomer1.response.body.id}}
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "email": "test.uno.nuova@example.com"
+}
+
+
+### 3.5 [CUSTOMER1] TEST DI SICUREZZA — tentativo di auto-promozione ad ADMIN.
+### Deve rispondere 403 Forbidden ("Solo un ADMIN può modificare il ruolo").
+### Questo è il test anti-regressione della privilege escalation corretta in
+### UserController.modificaUtente (fix applicato in questa sessione, PR #27/#29).
+PUT {{baseUrl}}/api/utenti/{{registerCustomer1.response.body.id}}
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "role": "ADMIN"
+}
+
+
+### 3.6 [CUSTOMER1] TEST DI SICUREZZA — tentativo di modificare un ALTRO utente
+### (customer2). Deve rispondere 403 Forbidden ("Non autorizzato a modificare questo utente").
+PUT {{baseUrl}}/api/utenti/{{registerCustomer2.response.body.id}}
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "email": "email-non-mia@example.com"
+}
+
+
+### 3.7 [ADMIN/EMPLOYEE] Cambia stato utente (es. sospensione)
+PATCH {{baseUrl}}/api/utenti/{{registerCustomer2.response.body.id}}/status
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "stato": "SOSPESO"
+}
+
+
+### 3.8 [ADMIN/EMPLOYEE] Riattiva l'utente sospeso sopra, altrimenti i test successivi
+### con customer2 (bonifico) falliscono per conto non attivo
+PATCH {{baseUrl}}/api/utenti/{{registerCustomer2.response.body.id}}/status
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "stato": "ATTIVO"
+}
+
+
+### =========================================================================
+### 4. CONTI CORRENTI
+### =========================================================================
+
+### 4.1 [CUSTOMER1] Apertura conto A — l'IBAN è generato server-side (BankAccountServiceImpl
+### .generaIban), viene creato in stato IN_ATTESA e va approvato da un EMPLOYEE/ADMIN.
+# @name openAccountA
+POST {{baseUrl}}/api/conti/apertura
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+
+
+### 4.2 [CUSTOMER1] Apertura conto B — secondo conto dello stesso intestatario, serve
+### per testare il giroconto (consentito solo tra conti con lo stesso proprietario).
+# @name openAccountB
+POST {{baseUrl}}/api/conti/apertura
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+
+
+### 4.3 [CUSTOMER2] Apertura conto C — di un intestatario diverso, serve per il bonifico.
+# @name openAccountC
+POST {{baseUrl}}/api/conti/apertura
+Authorization: Bearer {{loginCustomer2.response.body.access_token}}
+
+
+### 4.4 [ADMIN] Approva conto A — finché resta IN_ATTESA nessuna operazione monetaria
+### è permessa (BankAccountService.assertActive blocca con 409).
+PATCH {{baseUrl}}/api/conti/{{openAccountA.response.body.id}}/approve
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "approva": true
+}
+
+
+### 4.5 [ADMIN] Approva conto B
+PATCH {{baseUrl}}/api/conti/{{openAccountB.response.body.id}}/approve
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "approva": true
+}
+
+
+### 4.6 [ADMIN] Approva conto C
+PATCH {{baseUrl}}/api/conti/{{openAccountC.response.body.id}}/approve
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "approva": true
+}
+
+
+### 4.7 [ADMIN] Elenco conti (con dati intestatario, JOIN FETCH lato server)
+GET {{baseUrl}}/api/conti?page=0&size=10
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+
+
+### 4.8 [ADMIN/EMPLOYEE] Imposta i limiti operativi sul conto A
+PUT {{baseUrl}}/api/conti/{{openAccountA.response.body.id}}/limits
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "dailyWithdrawalLimit": 500.00,
+  "singleTransactionLimit": 1000.00,
+  "monthlyTransferLimit": 5000.00
+}
+
+
+### 4.9 [CUSTOMER1, proprietario] Consulta i limiti del proprio conto A
+GET {{baseUrl}}/api/conti/{{openAccountA.response.body.id}}/limits
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+
+
+### =========================================================================
+### 5. TRANSAZIONI
+### =========================================================================
+
+### 5.1 [CUSTOMER1] Versamento sul conto A — porta il saldo a 1000, necessario prima
+### di poter fare prelievi/bonifici/giroconti.
+# @name versamentoA
+POST {{baseUrl}}/api/transactions/versamento
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "iban": "{{openAccountA.response.body.iban}}",
+  "amount": 1000.00,
+  "description": "Versamento contanti allo sportello"
+}
+
+
+### 5.2 [CUSTOMER1] Prelievo dal conto A — soggetto al limite giornaliero impostato al punto 4.8
+POST {{baseUrl}}/api/transactions/prelievo
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "iban": "{{openAccountA.response.body.iban}}",
+  "amount": 100.00,
+  "description": "Prelievo sportello"
+}
+
+
+### 5.3 [CUSTOMER1] Giroconto A -> B (stesso intestatario, nessuna commissione)
+# @name girocontoAB
+POST {{baseUrl}}/api/transactions/giroconto
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "sourceIban": "{{openAccountA.response.body.iban}}",
+  "targetIban": "{{openAccountB.response.body.iban}}",
+  "amount": 200.00,
+  "description": "Giroconto verso conto risparmio"
+}
+
+
+### 5.4 [CUSTOMER1] Bonifico A -> C (intestatari diversi, trattenuta 2% calcolata
+### server-side con arrotondamento bancario HALF_EVEN — vedi TransactionServiceImpl.FEE_PERCENTAGE)
+# @name bonificoAC
+POST {{baseUrl}}/api/transactions/transfer
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "sourceIban": "{{openAccountA.response.body.iban}}",
+  "targetIban": "{{openAccountC.response.body.iban}}",
+  "amount": 150.00,
+  "description": "Bonifico affitto"
+}
+
+
+### 5.5 [CUSTOMER1] TEST DI VALIDAZIONE — bonifico con IBAN mittente = beneficiario.
+### Deve rispondere 409 Conflict ("Il conto di origine e quello di destinazione non
+### possono coincidere") — fix applicato in questa sessione (task #3).
+POST {{baseUrl}}/api/transactions/transfer
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "sourceIban": "{{openAccountA.response.body.iban}}",
+  "targetIban": "{{openAccountA.response.body.iban}}",
+  "amount": 10.00,
+  "description": "Bonifico non valido allo stesso IBAN"
+}
+
+
+### 5.6 [ADMIN/EMPLOYEE] Dettaglio della transazione di versamento eseguita al punto 5.1
+### (usa transactionId, non "id" — TransactionResponse chiama così il campo)
+GET {{baseUrl}}/api/transactions/{{versamentoA.response.body.transactionId}}
+Authorization: Bearer {{loginAdmin.response.body.access_token}}
+
+
+### =========================================================================
+### 6. CHIUSURA CONTO
+### =========================================================================
+
+### 6.1 [CUSTOMER1] Tentativo di chiusura del conto A con saldo diverso da zero.
+### Deve rispondere 409 Conflict ("Impossibile chiudere il conto: il saldo deve essere zero").
+POST {{baseUrl}}/api/conti/{{openAccountA.response.body.id}}/chiusura
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+
+
+### 6.2 [CUSTOMER1] Svuota il conto B prima di chiuderlo (prelievo dell'intero saldo residuo,
+### 200 versati dal giroconto al punto 5.3)
+POST {{baseUrl}}/api/transactions/prelievo
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+Content-Type: application/json
+
+{
+  "iban": "{{openAccountB.response.body.iban}}",
+  "amount": 200.00,
+  "description": "Prelievo per chiusura conto"
+}
+
+
+### 6.3 [CUSTOMER1] Chiusura conto B — ora il saldo è zero, l'operazione deve riuscire
+POST {{baseUrl}}/api/conti/{{openAccountB.response.body.id}}/chiusura
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+
+
+### =========================================================================
+### 7. DISATTIVAZIONE UTENTE
+### =========================================================================
+
+### 7.1 [ADMIN/EMPLOYEE] Disattiva un utente (soft — sincronizza anche enabled=false su Keycloak)
+DELETE {{baseUrl}}/api/utenti/{{createEmployee.response.body.id}}
+Authorization: Bearer {{loginAdmin.response.body.access_token}}

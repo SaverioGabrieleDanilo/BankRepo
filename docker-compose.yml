@@ -10,6 +10,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -28,13 +29,15 @@ services:
       KC_HTTP_PORT: 9090
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/gestionale_banca
+      KC_DB_SCHEMA: keycloak
       KC_DB_USERNAME: postgres
       KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-root}
     ports:
       - "9090:9090"
     volumes:
       - ./keycloak/themes:/opt/keycloak/themes
-    command: start-dev
+      - ./keycloak/realm-import:/opt/keycloak/data/import
+    command: start-dev --import-realm
     depends_on:
       postgres:
         condition: service_healthy 
