@@ -26,7 +26,7 @@
 @baseUrl = http://localhost:8888
 @keycloakTokenUrl = http://localhost:9090/realms/gestionale-banca/protocol/openid-connect/token
 @testClientId = banca-cli
-@testClientSecret = <secret del client di test creato ad-hoc, vedi README>
+@testClientSecret = dev-only-banca-cli-secret
 @adminUsername = admin
 @adminPassword = AdminBanca#2026
 @customer1Username = testcustomer1

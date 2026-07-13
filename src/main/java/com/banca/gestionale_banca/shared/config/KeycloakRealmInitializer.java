@@ -10,13 +10,20 @@ import org.keycloak.admin.client.resource.RolesResource;
 import org.keycloak.representations.idm.RealmRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+// Ridondante rispetto a keycloak/realm-import/gestionale-banca-realm.json (che gia'
+// crea ruoli/policy al primo avvio del container Keycloak), ma resta utile come rete
+// di sicurezza idempotente per volumi Docker preesistenti a quel file di import.
+// @Order(2): dopo DatabaseInitializer (1), prima di DefaultAdminBootstrapper (3), che
+// crea l'utente sia su questo realm sia sul DB applicativo.
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Order(2)
 public class KeycloakRealmInitializer implements CommandLineRunner {
 
     private static final String REALM = "gestionale-banca";

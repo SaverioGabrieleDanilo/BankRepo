@@ -1,0 +1,69 @@
+{
+  "realm": "gestionale-banca",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "passwordPolicy": "length(8) and digits(1) and upperCase(1) and lowerCase(1) and specialChars(1) and notUsername",
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 900,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 900,
+  "roles": {
+    "realm": [
+      { "name": "ADMIN", "description": "Amministratore" },
+      { "name": "EMPLOYEE", "description": "Dipendente" },
+      { "name": "CUSTOMER", "description": "Cliente" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "banca-spa",
+      "name": "Frontend Angular (Authorization Code + PKCE)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": ["http://localhost:4200/*"],
+      "webOrigins": ["http://localhost:4200"]
+    },
+    {
+      "clientId": "banca-service",
+      "name": "Backend: service account per gestione utenti Keycloak",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "dev-only-banca-service-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "implicitFlowEnabled": false
+    },
+    {
+      "clientId": "banca-cli",
+      "name": "Solo per test manuali (Postman/test-requests.http) via grant password diretto su Keycloak - mai sul backend applicativo",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "dev-only-banca-cli-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "implicitFlowEnabled": false
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-banca-service",
+      "enabled": true,
+      "serviceAccountClientId": "banca-service",
+      "clientRoles": {
+        "realm-management": ["manage-users", "manage-realm"]
+      }
+    }
+  ]
+}
