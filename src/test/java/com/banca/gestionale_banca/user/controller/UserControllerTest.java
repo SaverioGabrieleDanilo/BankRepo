@@ -25,6 +25,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -115,5 +116,45 @@ class UserControllerTest {
                 .andExpect(status().isOk());
 
         verify(userService).modificaUtente(eq(1L), any());
+    }
+
+    @Test
+    void owner_leggeIlProprioProfilo_e200() throws Exception {
+        when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
+
+        mockMvc.perform(get("/api/utenti/1")
+                        .with(jwt().jwt(j -> j.subject("customer-keycloak-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void employee_leggeIlProprioProfilo_e200() throws Exception {
+        when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
+
+        mockMvc.perform(get("/api/utenti/1")
+                        .with(jwt().jwt(j -> j.subject("customer-keycloak-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void admin_leggeProfiloDiUnAltroUtente_e200() throws Exception {
+        when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
+
+        mockMvc.perform(get("/api/utenti/1")
+                        .with(jwt().jwt(j -> j.subject("admin-keycloak-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void nonOwnerNonAdmin_leggeProfiloAltrui_vieneRifiutatoCon403() throws Exception {
+        when(userService.findById(1L)).thenReturn(Optional.of(contoCustomer()));
+
+        mockMvc.perform(get("/api/utenti/1")
+                        .with(jwt().jwt(j -> j.subject("un-altro-customer-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .andExpect(status().isForbidden());
     }
 }

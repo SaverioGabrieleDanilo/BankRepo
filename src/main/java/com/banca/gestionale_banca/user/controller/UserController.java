@@ -46,12 +46,21 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserResponse> getUtenteById(@PathVariable Long id) {
-        return userService.findById(id)
-                .map(UserResponse::from)
-                .map(ResponseEntity::ok)
+    public ResponseEntity<UserResponse> getUtenteById(@PathVariable Long id,
+                                                        @AuthenticationPrincipal Jwt jwt,
+                                                        Authentication authentication) {
+        Utente user = userService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isOwner = jwt.getSubject().equals(user.getKeycloakId());
+
+        if (!isAdmin && !isOwner) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato a consultare questo utente");
+        }
+
+        return ResponseEntity.ok(UserResponse.from(user));
     }
 
     @GetMapping
