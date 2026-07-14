@@ -18,7 +18,7 @@ public class UserResponse {
     private String lastName;
     private LocalDate dateOfBirth;
     private String role;
-    private String stato;
+    private String status;
     private String registrationStatus;
     private LocalDateTime createdAt;
 
@@ -31,7 +31,7 @@ public class UserResponse {
                 .lastName(u.getLastName())
                 .dateOfBirth(u.getDateOfBirth())
                 .role(u.getRole().getName())
-                .stato(u.getStatus().getName())
+                .status(u.getStatus().getName())
                 .registrationStatus(u.getRegistrationStatus().getName())
                 .createdAt(u.getCreatedAt())
                 .build();

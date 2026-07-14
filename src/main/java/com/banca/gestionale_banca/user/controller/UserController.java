@@ -34,15 +34,15 @@ public class UserController {
 
     @PostMapping("/registra")
     public ResponseEntity<UserResponse> registraUtente(@Valid @RequestBody RegisterRequest request) {
-        Utente utente = userService.registraUtente(request);
-        return ResponseEntity.ok(UserResponse.from(utente));
+        Utente user = userService.registraUtente(request);
+        return ResponseEntity.ok(UserResponse.from(user));
     }
 
     @PostMapping("/admin/crea")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponse> creaUtenteConRuolo(@Valid @RequestBody AdminCreateUserRequest request) {
-        Utente utente = userService.registraUtenteConRuolo(request, request.getRole());
-        return ResponseEntity.ok(UserResponse.from(utente));
+        Utente user = userService.registraUtenteConRuolo(request, request.getRole());
+        return ResponseEntity.ok(UserResponse.from(user));
     }
 
     @GetMapping("/{id}")
@@ -71,12 +71,12 @@ public class UserController {
             @AuthenticationPrincipal Jwt jwt,
             Authentication authentication) {
 
-        Utente utente = userService.findById(id)
+        Utente user = userService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
 
         boolean isAdmin = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        boolean isOwner = jwt.getSubject().equals(utente.getKeycloakId());
+        boolean isOwner = jwt.getSubject().equals(user.getKeycloakId());
 
         if (!isAdmin && request.getRole() != null) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Solo un ADMIN può modificare il ruolo");
@@ -98,7 +98,7 @@ public class UserController {
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<UserResponse> cambiaStatoUtente(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request) {
-        return ResponseEntity.ok(UserResponse.from(userService.cambiaStatoUtente(id, request.getStato())));
+        return ResponseEntity.ok(UserResponse.from(userService.cambiaStatoUtente(id, request.getStatus())));
     }
 
     @PatchMapping("/{id}/registration-status")

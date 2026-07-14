@@ -139,7 +139,7 @@
             "header": [ { "key": "Content-Type", "value": "application/json" } ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"stato\": \"SOSPESO\"\n}"
+              "raw": "{\n  \"status\": \"SOSPESO\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/utenti/{{userId}}/status",
@@ -171,7 +171,7 @@
             "header": [ { "key": "Content-Type", "value": "application/json" } ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"approva\": true\n}"
+              "raw": "{\n  \"approved\": true\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/conti/{{accountId}}/approve",

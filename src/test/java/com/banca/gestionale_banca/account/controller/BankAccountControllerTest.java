@@ -86,7 +86,7 @@ class BankAccountControllerTest {
         when(bankAccountService.approvaConto(eq(1L), eq(true))).thenReturn(contoResponse());
 
         ApproveAccountRequest request = new ApproveAccountRequest();
-        request.setApprova(true);
+        request.setApproved(true);
 
         mockMvc.perform(patch("/api/conti/1/approve")
                         .with(jwt().jwt(j -> j.subject("employee-id"))
@@ -99,7 +99,7 @@ class BankAccountControllerTest {
     @Test
     void approvaConto_conRuoloCustomer_e403() throws Exception {
         ApproveAccountRequest request = new ApproveAccountRequest();
-        request.setApprova(true);
+        request.setApproved(true);
 
         mockMvc.perform(patch("/api/conti/1/approve")
                         .with(jwt().jwt(j -> j.subject("customer-id"))

@@ -9,13 +9,13 @@ import java.util.Optional;
 
 public interface UserService {
     Utente registraUtente(RegisterRequest request);
-    Utente registraUtenteConRuolo(RegisterRequest request, String ruolo);
+    Utente registraUtenteConRuolo(RegisterRequest request, String role);
     Optional<Utente> findById(Long id);
     Optional<Utente> findByKeycloakId(String keycloakId);
     Utente modificaUtente(Long id, UpdateUserRequest request);
     void disattivaUtente(Long id);
-    Utente cambiaStatoUtente(Long id, String statoNome);
-    Utente cambiaStatoRegistrazione(Long id, String statoNome);
+    Utente cambiaStatoUtente(Long id, String statusName);
+    Utente cambiaStatoRegistrazione(Long id, String statusName);
     Page<Utente> getUtentiPaginati(Pageable pageable);
 
     /**

@@ -14,12 +14,12 @@ public class AuthorizationFacade {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_" + Ruoli.EMPLOYEE));
     }
 
-    public void verificaProprietario(String ownerKeycloakId, String keycloakId, boolean isEmployee, String messaggioSeNonAutorizzato) {
+    public void verificaProprietario(String ownerKeycloakId, String keycloakId, boolean isEmployee, String messageIfNotAuthorized) {
         if (isEmployee) {
             return;
         }
         if (!ownerKeycloakId.equals(keycloakId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, messaggioSeNonAutorizzato);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, messageIfNotAuthorized);
         }
     }
 }

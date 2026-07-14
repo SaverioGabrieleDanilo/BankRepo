@@ -32,10 +32,10 @@ class AccountLimitsServiceImpl implements AccountLimitsService {
 
         authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
 
-        AccountLimits limiti = accountLimitsRepository.findByAccountId(accountId)
+        AccountLimits limits = accountLimitsRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Limiti non ancora configurati per questo conto"));
 
-        return toResponse(limiti);
+        return toResponse(limits);
     }
 
     @Override
@@ -45,21 +45,21 @@ class AccountLimitsServiceImpl implements AccountLimitsService {
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
         LocalDateTime now = LocalDateTime.now();
-        AccountLimits limiti = accountLimitsRepository.findByAccountId(accountId).orElseGet(AccountLimits::new);
+        AccountLimits limits = accountLimitsRepository.findByAccountId(accountId).orElseGet(AccountLimits::new);
 
-        if (limiti.getId() == null) {
-            limiti.setAccount(account);
-            limiti.setUser(account.getUser());
-            limiti.setCreatedAt(now);
+        if (limits.getId() == null) {
+            limits.setAccount(account);
+            limits.setUser(account.getUser());
+            limits.setCreatedAt(now);
         }
-        limiti.setDailyWithdrawalLimit(request.getDailyWithdrawalLimit());
-        limiti.setSingleTransactionLimit(request.getSingleTransactionLimit());
-        limiti.setMonthlyTransferLimit(request.getMonthlyTransferLimit());
-        limiti.setUpdatedAt(now);
+        limits.setDailyWithdrawalLimit(request.getDailyWithdrawalLimit());
+        limits.setSingleTransactionLimit(request.getSingleTransactionLimit());
+        limits.setMonthlyTransferLimit(request.getMonthlyTransferLimit());
+        limits.setUpdatedAt(now);
 
-        limiti = accountLimitsRepository.save(limiti);
+        limits = accountLimitsRepository.save(limits);
 
-        return toResponse(limiti);
+        return toResponse(limits);
     }
 
     @Override
@@ -67,13 +67,13 @@ class AccountLimitsServiceImpl implements AccountLimitsService {
         return accountLimitsRepository.findByAccountId(accountId).map(this::toResponse);
     }
 
-    private AccountLimitsResponse toResponse(AccountLimits limiti) {
+    private AccountLimitsResponse toResponse(AccountLimits limits) {
         return AccountLimitsResponse.builder()
-                .accountId(limiti.getAccount().getId())
-                .dailyWithdrawalLimit(limiti.getDailyWithdrawalLimit())
-                .singleTransactionLimit(limiti.getSingleTransactionLimit())
-                .monthlyTransferLimit(limiti.getMonthlyTransferLimit())
-                .updatedAt(limiti.getUpdatedAt())
+                .accountId(limits.getAccount().getId())
+                .dailyWithdrawalLimit(limits.getDailyWithdrawalLimit())
+                .singleTransactionLimit(limits.getSingleTransactionLimit())
+                .monthlyTransferLimit(limits.getMonthlyTransferLimit())
+                .updatedAt(limits.getUpdatedAt())
                 .build();
     }
 }

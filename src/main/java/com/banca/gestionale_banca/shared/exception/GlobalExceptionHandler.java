@@ -56,8 +56,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
     public ResponseEntity<Map<String, Object>> handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException e) {
-        String tipoAtteso = e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : "valido";
-        return body(HttpStatus.BAD_REQUEST, "Parametro '" + e.getName() + "' non valido: atteso un valore di tipo " + tipoAtteso);
+        String expectedType = e.getRequiredType() != null ? e.getRequiredType().getSimpleName() : "valido";
+        return body(HttpStatus.BAD_REQUEST, "Parametro '" + e.getName() + "' non valido: atteso un valore di tipo " + expectedType);
     }
 
     // Copre sia i fallimenti di @PreAuthorize (AuthorizationDeniedException, sottoclasse
@@ -83,15 +83,15 @@ public class GlobalExceptionHandler {
     // È il caso d'errore più frequente in un'API REST (input client sbagliato).
     @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(org.springframework.web.bind.MethodArgumentNotValidException e) {
-        Map<String, String> errori = new LinkedHashMap<>();
+        Map<String, String> errors = new LinkedHashMap<>();
         for (FieldError fe : e.getBindingResult().getFieldErrors()) {
-            errori.put(fe.getField(), fe.getDefaultMessage());
+            errors.put(fe.getField(), fe.getDefaultMessage());
         }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", Instant.now().toString());
         body.put("status", HttpStatus.BAD_REQUEST.value());
         body.put("message", "Validazione fallita");
-        body.put("errors", errori);
+        body.put("errors", errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 

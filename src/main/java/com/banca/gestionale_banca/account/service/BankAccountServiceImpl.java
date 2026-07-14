@@ -35,7 +35,7 @@ class BankAccountServiceImpl implements BankAccountService {
     @Override
     @Transactional
     public BankAccountResponse apriConto(String keycloakId) {
-        Utente utente = userService.findByKeycloakId(keycloakId)
+        Utente user = userService.findByKeycloakId(keycloakId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
 
         AccountStatus status = accountStatusRepository.findByName(StatiConto.IN_ATTESA)
@@ -44,7 +44,7 @@ class BankAccountServiceImpl implements BankAccountService {
         LocalDateTime now = LocalDateTime.now();
         BankAccount account = new BankAccount();
         account.setIban(generaIban());
-        account.setUser(utente);
+        account.setUser(user);
         account.setBalance(BigDecimal.ZERO);
         account.setContableBalance(BigDecimal.ZERO);
         account.setStatus(status);
@@ -58,7 +58,7 @@ class BankAccountServiceImpl implements BankAccountService {
 
     @Override
     @Transactional
-    public BankAccountResponse approvaConto(Long accountId, boolean approva) {
+    public BankAccountResponse approvaConto(Long accountId, boolean approved) {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
@@ -66,10 +66,10 @@ class BankAccountServiceImpl implements BankAccountService {
             throw new ConflictException("Il conto non è in attesa di approvazione");
         }
 
-        AccountStatus nuovoStato = accountStatusRepository.findByName(approva ? StatiConto.ATTIVO : StatiConto.RIFIUTATO)
+        AccountStatus newStatus = accountStatusRepository.findByName(approved ? StatiConto.ATTIVO : StatiConto.RIFIUTATO)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato conto non configurato"));
 
-        account.setStatus(nuovoStato);
+        account.setStatus(newStatus);
         account.setUpdatedAt(LocalDateTime.now());
         account = bankAccountRepository.save(account);
 
@@ -88,10 +88,10 @@ class BankAccountServiceImpl implements BankAccountService {
             throw new ConflictException("Impossibile chiudere il conto: il saldo deve essere zero");
         }
 
-        AccountStatus chiuso = accountStatusRepository.findByName(StatiConto.CHIUSO)
+        AccountStatus closed = accountStatusRepository.findByName(StatiConto.CHIUSO)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato conto CHIUSO non configurato"));
 
-        account.setStatus(chiuso);
+        account.setStatus(closed);
         account.setUpdatedAt(LocalDateTime.now());
         account = bankAccountRepository.save(account);
 
@@ -127,15 +127,15 @@ class BankAccountServiceImpl implements BankAccountService {
     }
 
     @Override
-    public BankAccount lockForUpdate(String iban, String messaggioSeNonTrovato) {
+    public BankAccount lockForUpdate(String iban, String messageIfNotFound) {
         return bankAccountRepository.findByIbanForUpdate(iban)
-                .orElseThrow(() -> new ResourceNotFoundException(messaggioSeNonTrovato));
+                .orElseThrow(() -> new ResourceNotFoundException(messageIfNotFound));
     }
 
     @Override
-    public void assertActive(BankAccount account, String messaggioSeNonAttivo) {
+    public void assertActive(BankAccount account, String messageIfNotActive) {
         if (!StatiConto.ATTIVO.equals(account.getStatus().getName())) {
-            throw new ConflictException(messaggioSeNonAttivo);
+            throw new ConflictException(messageIfNotActive);
         }
     }
 

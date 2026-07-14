@@ -164,8 +164,8 @@ class TransactionServiceImpl implements TransactionService {
         return toResponse(tx, tx.getPayerAccount().getIban(), tx.getPayerAccount().getBalance(), null);
     }
 
-    private BankAccount trovaConto(String iban, String messaggioSeNonTrovato) {
-        return bankAccountService.lockForUpdate(iban, messaggioSeNonTrovato);
+    private BankAccount trovaConto(String iban, String messageIfNotFound) {
+        return bankAccountService.lockForUpdate(iban, messageIfNotFound);
     }
 
     /**
@@ -190,35 +190,35 @@ class TransactionServiceImpl implements TransactionService {
      * Un solo fetch di AccountLimits per operazione (prima veniva interrogato due volte:
      * una per il limite di singola transazione, una per quello giornaliero/mensile).
      */
-    private void verificaLimiti(BankAccount account, BigDecimal amount, boolean isPrelievo) {
-        accountLimitsService.findLimiti(account.getId()).ifPresent(limiti -> {
-            if (amount.compareTo(limiti.getSingleTransactionLimit()) > 0) {
+    private void verificaLimiti(BankAccount account, BigDecimal amount, boolean isWithdrawal) {
+        accountLimitsService.findLimiti(account.getId()).ifPresent(limits -> {
+            if (amount.compareTo(limits.getSingleTransactionLimit()) > 0) {
                 throw new ConflictException(
-                        "Importo superiore al limite per singola transazione consentito (" + limiti.getSingleTransactionLimit() + "€)");
+                        "Importo superiore al limite per singola transazione consentito (" + limits.getSingleTransactionLimit() + "€)");
             }
-            if (isPrelievo) {
+            if (isWithdrawal) {
                 LocalDateTime dayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
                 LocalDateTime dayEnd = dayStart.plusDays(1).minusNanos(1);
-                BigDecimal giaPrelevato = transactionRepository.sumDailyWithdrawalsByAccount(account.getId(), dayStart, dayEnd);
-                if (giaPrelevato.add(amount).compareTo(limiti.getDailyWithdrawalLimit()) > 0) {
+                BigDecimal alreadyWithdrawn = transactionRepository.sumDailyWithdrawalsByAccount(account.getId(), dayStart, dayEnd);
+                if (alreadyWithdrawn.add(amount).compareTo(limits.getDailyWithdrawalLimit()) > 0) {
                     throw new ConflictException("Limite giornaliero di prelievo superato (limite: "
-                            + limiti.getDailyWithdrawalLimit() + "€, già prelevato oggi: " + giaPrelevato + "€)");
+                            + limits.getDailyWithdrawalLimit() + "€, già prelevato oggi: " + alreadyWithdrawn + "€)");
                 }
             } else {
                 LocalDateTime monthStart = LocalDateTime.now().toLocalDate().withDayOfMonth(1).atStartOfDay();
                 LocalDateTime monthEnd = monthStart.plusMonths(1).minusNanos(1);
-                BigDecimal giaTrasferito = transactionRepository.sumMonthlyTransfersByAccount(account.getId(), monthStart, monthEnd);
-                if (giaTrasferito.add(amount).compareTo(limiti.getMonthlyTransferLimit()) > 0) {
+                BigDecimal alreadyTransferred = transactionRepository.sumMonthlyTransfersByAccount(account.getId(), monthStart, monthEnd);
+                if (alreadyTransferred.add(amount).compareTo(limits.getMonthlyTransferLimit()) > 0) {
                     throw new ConflictException("Limite mensile di trasferimento superato (limite: "
-                            + limiti.getMonthlyTransferLimit() + "€, già trasferito questo mese: " + giaTrasferito + "€)");
+                            + limits.getMonthlyTransferLimit() + "€, già trasferito questo mese: " + alreadyTransferred + "€)");
                 }
             }
         });
     }
 
-    private TransactionType trovaTipo(String nome) {
-        return transactionTypeRepository.findByName(nome)
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo transazione " + nome + " non configurato"));
+    private TransactionType trovaTipo(String name) {
+        return transactionTypeRepository.findByName(name)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo transazione " + name + " non configurato"));
     }
 
     private TransactionStatus trovaStatoEseguita() {

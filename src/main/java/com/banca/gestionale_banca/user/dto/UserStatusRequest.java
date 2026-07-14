@@ -9,5 +9,5 @@ import lombok.Setter;
 public class UserStatusRequest {
 
     @NotBlank
-    private String stato;
+    private String status;
 }

@@ -70,27 +70,27 @@ class TransactionServiceImplTest {
         });
     }
 
-    private BankAccount contoAttivo(String iban, BigDecimal saldo, String keycloakId) {
-        Utente utente = new Utente();
-        utente.setKeycloakId(keycloakId);
+    private BankAccount contoAttivo(String iban, BigDecimal balance, String keycloakId) {
+        Utente user = new Utente();
+        user.setKeycloakId(keycloakId);
 
-        AccountStatus attivo = new AccountStatus("ATTIVO");
+        AccountStatus active = new AccountStatus("ATTIVO");
 
         BankAccount account = new BankAccount();
         account.setIban(iban);
-        account.setBalance(saldo);
-        account.setUser(utente);
-        account.setStatus(attivo);
+        account.setBalance(balance);
+        account.setUser(user);
+        account.setStatus(active);
         return account;
     }
 
     @Test
     void eseguiVersamento_incrementaIlSaldo() {
-        BankAccount conto = contoAttivo("IT60X0000000000000000000001", new BigDecimal("100.00"), "user-1");
-        when(bankAccountService.lockForUpdate(eq(conto.getIban()), any())).thenReturn(conto);
+        BankAccount account = contoAttivo("IT60X0000000000000000000001", new BigDecimal("100.00"), "user-1");
+        when(bankAccountService.lockForUpdate(eq(account.getIban()), any())).thenReturn(account);
 
         TransactionRequest request = new TransactionRequest();
-        request.setIban(conto.getIban());
+        request.setIban(account.getIban());
         request.setAmount(new BigDecimal("50.00"));
 
         TransactionResponse response = service.eseguiVersamento(request, "user-1", false);
@@ -100,11 +100,11 @@ class TransactionServiceImplTest {
 
     @Test
     void eseguiPrelievo_saldoInsufficiente_lanciaConflictException() {
-        BankAccount conto = contoAttivo("IT60X0000000000000000000002", new BigDecimal("50.00"), "user-1");
-        when(bankAccountService.lockForUpdate(eq(conto.getIban()), any())).thenReturn(conto);
+        BankAccount account = contoAttivo("IT60X0000000000000000000002", new BigDecimal("50.00"), "user-1");
+        when(bankAccountService.lockForUpdate(eq(account.getIban()), any())).thenReturn(account);
 
         TransactionRequest request = new TransactionRequest();
-        request.setIban(conto.getIban());
+        request.setIban(account.getIban());
         request.setAmount(new BigDecimal("100.00"));
 
         assertThrows(ConflictException.class, () -> service.eseguiPrelievo(request, "user-1", false));
@@ -124,16 +124,16 @@ class TransactionServiceImplTest {
 
     @Test
     void eseguiPrelievo_superaLimiteSingolaTransazione_lanciaConflictException() {
-        BankAccount conto = contoAttivo("IT60X0000000000000000000003", new BigDecimal("1000.00"), "user-1");
-        when(bankAccountService.lockForUpdate(eq(conto.getIban()), any())).thenReturn(conto);
+        BankAccount account = contoAttivo("IT60X0000000000000000000003", new BigDecimal("1000.00"), "user-1");
+        when(bankAccountService.lockForUpdate(eq(account.getIban()), any())).thenReturn(account);
 
-        AccountLimitsResponse limiti = AccountLimitsResponse.builder()
+        AccountLimitsResponse limits = AccountLimitsResponse.builder()
                 .singleTransactionLimit(new BigDecimal("100.00"))
                 .build();
-        when(accountLimitsService.findLimiti(any())).thenReturn(Optional.of(limiti));
+        when(accountLimitsService.findLimiti(any())).thenReturn(Optional.of(limits));
 
         TransactionRequest request = new TransactionRequest();
-        request.setIban(conto.getIban());
+        request.setIban(account.getIban());
         request.setAmount(new BigDecimal("500.00"));
 
         assertThrows(ConflictException.class, () -> service.eseguiPrelievo(request, "user-1", false));
@@ -141,18 +141,18 @@ class TransactionServiceImplTest {
 
     @Test
     void eseguiGiroconto_intestatariDiversi_lanciaConflictException() {
-        BankAccount origine = contoAttivo("IT60X0000000000000000000004", new BigDecimal("200.00"), "user-1");
-        origine.getUser().setId(1L);
+        BankAccount source = contoAttivo("IT60X0000000000000000000004", new BigDecimal("200.00"), "user-1");
+        source.getUser().setId(1L);
 
-        BankAccount destinazione = contoAttivo("IT60X0000000000000000000005", new BigDecimal("0.00"), "user-2");
-        destinazione.getUser().setId(2L);
+        BankAccount target = contoAttivo("IT60X0000000000000000000005", new BigDecimal("0.00"), "user-2");
+        target.getUser().setId(2L);
 
-        when(bankAccountService.lockForUpdate(eq(origine.getIban()), any())).thenReturn(origine);
-        when(bankAccountService.lockForUpdate(eq(destinazione.getIban()), any())).thenReturn(destinazione);
+        when(bankAccountService.lockForUpdate(eq(source.getIban()), any())).thenReturn(source);
+        when(bankAccountService.lockForUpdate(eq(target.getIban()), any())).thenReturn(target);
 
         GirocontoRequest request = new GirocontoRequest();
-        request.setSourceIban(origine.getIban());
-        request.setTargetIban(destinazione.getIban());
+        request.setSourceIban(source.getIban());
+        request.setTargetIban(target.getIban());
         request.setAmount(new BigDecimal("50.00"));
 
         assertThrows(ConflictException.class, () -> service.eseguiGiroconto(request, "user-1", false));
@@ -160,11 +160,11 @@ class TransactionServiceImplTest {
 
     @Test
     void eseguiVersamento_nonProprietario_lanciaForbidden() {
-        BankAccount conto = contoAttivo("IT60X0000000000000000000006", new BigDecimal("0.00"), "user-1");
-        when(bankAccountService.lockForUpdate(eq(conto.getIban()), any())).thenReturn(conto);
+        BankAccount account = contoAttivo("IT60X0000000000000000000006", new BigDecimal("0.00"), "user-1");
+        when(bankAccountService.lockForUpdate(eq(account.getIban()), any())).thenReturn(account);
 
         TransactionRequest request = new TransactionRequest();
-        request.setIban(conto.getIban());
+        request.setIban(account.getIban());
         request.setAmount(new BigDecimal("10.00"));
 
         org.springframework.web.server.ResponseStatusException ex = assertThrows(

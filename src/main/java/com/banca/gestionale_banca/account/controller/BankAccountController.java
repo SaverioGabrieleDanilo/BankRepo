@@ -49,7 +49,7 @@ public class BankAccountController {
     @PatchMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
     public ResponseEntity<BankAccountResponse> approvaConto(@PathVariable Long id, @RequestBody ApproveAccountRequest request) {
-        return ResponseEntity.ok(bankAccountService.approvaConto(id, request.isApprova()));
+        return ResponseEntity.ok(bankAccountService.approvaConto(id, request.isApproved()));
     }
 
     @PostMapping("/{id}/chiusura")

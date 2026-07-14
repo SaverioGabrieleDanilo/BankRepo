@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 
 public interface BankAccountService {
     BankAccountResponse apriConto(String keycloakId);
-    BankAccountResponse approvaConto(Long accountId, boolean approva);
+    BankAccountResponse approvaConto(Long accountId, boolean approved);
     BankAccountResponse chiudiConto(Long accountId, String keycloakId, boolean isEmployee);
     Page<BankAccountAdminResponse> listaConti(Pageable pageable);
 
@@ -19,7 +19,7 @@ public interface BankAccountService {
      * API interna ad uso di altre feature (es. transaction): acquisisce il lock
      * pessimistico sul conto e lo restituisce nella stessa transazione del chiamante.
      */
-    BankAccount lockForUpdate(String iban, String messaggioSeNonTrovato);
-    void assertActive(BankAccount account, String messaggioSeNonAttivo);
+    BankAccount lockForUpdate(String iban, String messageIfNotFound);
+    void assertActive(BankAccount account, String messageIfNotActive);
     BankAccount updateBalance(BankAccount account, BigDecimal newBalance);
 }
