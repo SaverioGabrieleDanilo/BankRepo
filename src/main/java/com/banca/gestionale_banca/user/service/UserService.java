@@ -8,19 +8,19 @@ import org.springframework.data.domain.Pageable;
 import java.util.Optional;
 
 public interface UserService {
-    User registraUtente(RegisterRequest request);
-    User registraUtenteConRuolo(RegisterRequest request, String role);
+    User registerUser(RegisterRequest request);
+    User registerUserWithRole(RegisterRequest request, String role);
     Optional<User> findById(Long id);
     Optional<User> findByKeycloakId(String keycloakId);
-    User modificaUtente(Long id, UpdateUserRequest request);
-    void disattivaUtente(Long id);
-    User cambiaStatoUtente(Long id, String statusName);
-    User cambiaStatoRegistrazione(Long id, String statusName);
-    Page<User> getUtentiPaginati(Pageable pageable);
+    User updateUser(Long id, UpdateUserRequest request);
+    void deactivateUser(Long id);
+    User changeUserStatus(Long id, String statusName);
+    User changeRegistrationStatus(Long id, String statusName);
+    Page<User> getPaginatedUsers(Pageable pageable);
 
     /**
      * API interna ad uso del bootstrap applicativo (shared/config): inizializza
      * le tabelle di riferimento (ruoli, stati utente, stati registrazione) se vuote.
      */
-    void seedDatiBase();
+    void seedBaseData();
 }

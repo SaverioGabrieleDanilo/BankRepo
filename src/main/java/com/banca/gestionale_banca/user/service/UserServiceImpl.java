@@ -56,12 +56,12 @@ class UserServiceImpl implements UserService {
     // niente @Transactional qui, per non tenere aperta una connessione DB per
     // tutta la durata della chiamata esterna (vedi audit UserServiceImpl).
     @Override
-    public User registraUtente(RegisterRequest request) {
+    public User registerUser(RegisterRequest request) {
         return creaUtente(request, Ruoli.CUSTOMER);
     }
 
     @Override
-    public User registraUtenteConRuolo(RegisterRequest request, String role) {
+    public User registerUserWithRole(RegisterRequest request, String role) {
         return creaUtente(request, role);
     }
 
@@ -186,7 +186,7 @@ class UserServiceImpl implements UserService {
     public Optional<User> findByKeycloakId(String keycloakId) { return userrepo.findByKeycloakId(keycloakId); }
 
     @Override
-    public User modificaUtente(Long id, UpdateUserRequest request) {
+    public User updateUser(Long id, UpdateUserRequest request) {
         User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
 
         // Risolve il ruolo PRIMA di qualunque chiamata Keycloak: se il ruolo richiesto
@@ -217,12 +217,12 @@ class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void disattivaUtente(Long id) {
-        cambiaStatoUtente(id, StatiUtente.CHIUSO);
+    public void deactivateUser(Long id) {
+        changeUserStatus(id, StatiUtente.CHIUSO);
     }
 
     @Override
-    public User cambiaStatoUtente(Long id, String statusName) {
+    public User changeUserStatus(Long id, String statusName) {
         User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
         UserStatus newStatus = userStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato '" + statusName + "' non valido"));
@@ -239,26 +239,26 @@ class UserServiceImpl implements UserService {
 
         u.setStatus(newStatus);
         userrepo.save(u);
-        // Vedi nota in modificaUtente: ri-fetch con JOIN FETCH dopo il save
+        // Vedi nota in updateUser: ri-fetch con JOIN FETCH dopo il save
         // per evitare LazyInitializationException sull'entity restituita.
         return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
     }
 
     @Override
-    public User cambiaStatoRegistrazione(Long id, String statusName) {
+    public User changeRegistrationStatus(Long id, String statusName) {
         User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
         RegistrationStatus newStatus = registrationStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato di registrazione '" + statusName + "' non valido"));
 
         u.setRegistrationStatus(newStatus);
         userrepo.save(u);
-        // Vedi nota in modificaUtente: ri-fetch con JOIN FETCH dopo il save
+        // Vedi nota in updateUser: ri-fetch con JOIN FETCH dopo il save
         // per evitare LazyInitializationException sull'entity restituita.
         return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
     }
 
     @Override
-    public Page<User> getUtentiPaginati(Pageable pageable) {
+    public Page<User> getPaginatedUsers(Pageable pageable) {
         return userrepo.findAllWithDetails(pageable);
     }
 
@@ -268,7 +268,7 @@ class UserServiceImpl implements UserService {
     // incompleto, facendo fallire DefaultAdminBootstrapper piu' avanti.
     @Override
     @Transactional
-    public void seedDatiBase() {
+    public void seedBaseData() {
         creaSeMancante(roleRepository::findByName, roleRepository::save, Role::new,
                 Ruoli.ADMIN, Ruoli.EMPLOYEE, Ruoli.CUSTOMER);
 
