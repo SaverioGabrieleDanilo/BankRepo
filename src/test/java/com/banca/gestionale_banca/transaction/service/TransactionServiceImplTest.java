@@ -3,9 +3,11 @@ package com.banca.gestionale_banca.transaction.service;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.account.dto.AccountLimitsResponse;
+import com.banca.gestionale_banca.transaction.dto.DepositRequest;
 import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
+import com.banca.gestionale_banca.transaction.repository.DepositTypeRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionStatusRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionTypeRepository;
@@ -13,20 +15,18 @@ import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.account.model.AccountStatus;
 import com.banca.gestionale_banca.account.model.BankAccount;
+import com.banca.gestionale_banca.transaction.model.DepositType;
 import com.banca.gestionale_banca.transaction.model.TransactionStatus;
 import com.banca.gestionale_banca.transaction.model.TransactionType;
 import com.banca.gestionale_banca.user.model.Utente;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
 import java.math.BigDecimal;
 import java.util.Optional;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -46,6 +46,8 @@ class TransactionServiceImplTest {
     @Mock
     private TransactionStatusRepository transactionStatusRepository;
     @Mock
+    private DepositTypeRepository depositTypeRepository;
+    @Mock
     private AccountLimitsService accountLimitsService;
 
     private TransactionServiceImpl service;
@@ -53,12 +55,14 @@ class TransactionServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new TransactionServiceImpl(bankAccountService, transactionRepository,
-                transactionTypeRepository, transactionStatusRepository, accountLimitsService,
+                transactionTypeRepository, transactionStatusRepository, depositTypeRepository, accountLimitsService,
                 new AuthorizationFacade());
 
         lenient().when(transactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(transactionTypeRepository.findByName(any())).thenAnswer(invocation ->
                 Optional.of(new TransactionType(invocation.getArgument(0))));
+        lenient().when(depositTypeRepository.findByName(any())).thenAnswer(invocation ->
+                Optional.of(new DepositType(invocation.getArgument(0))));
         lenient().when(transactionStatusRepository.findByName("ESEGUITA")).thenReturn(Optional.of(new TransactionStatus("ESEGUITA")));
         lenient().when(accountLimitsService.findLimiti(any())).thenReturn(Optional.empty());
         lenient().doAnswer(invocation -> null).when(bankAccountService).assertActive(any(), any());
@@ -89,9 +93,11 @@ class TransactionServiceImplTest {
         BankAccount account = contoAttivo("IT60X0000000000000000000001", new BigDecimal("100.00"), "user-1");
         when(bankAccountService.lockForUpdate(eq(account.getIban()), any())).thenReturn(account);
 
-        TransactionRequest request = new TransactionRequest();
+        DepositRequest request = new DepositRequest();
         request.setIban(account.getIban());
         request.setAmount(new BigDecimal("50.00"));
+        request.setDepositType("CASH");
+        request.setItemsCount(1);
 
         TransactionResponse response = service.eseguiVersamento(request, "user-1", false);
 
@@ -163,9 +169,11 @@ class TransactionServiceImplTest {
         BankAccount account = contoAttivo("IT60X0000000000000000000006", new BigDecimal("0.00"), "user-1");
         when(bankAccountService.lockForUpdate(eq(account.getIban()), any())).thenReturn(account);
 
-        TransactionRequest request = new TransactionRequest();
+        DepositRequest request = new DepositRequest();
         request.setIban(account.getIban());
         request.setAmount(new BigDecimal("10.00"));
+        request.setDepositType("CASH");
+        request.setItemsCount(1);
 
         org.springframework.web.server.ResponseStatusException ex = assertThrows(
                 org.springframework.web.server.ResponseStatusException.class,

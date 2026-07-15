@@ -1,5 +1,6 @@
 package com.banca.gestionale_banca.transaction.controller;
 
+import com.banca.gestionale_banca.transaction.dto.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -11,11 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
-import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
-import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
-import com.banca.gestionale_banca.transaction.dto.TransferRequest;
+import com.banca.gestionale_banca.transaction.dto.DepositRequest;
 import com.banca.gestionale_banca.transaction.service.TransactionService;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 
@@ -31,7 +28,7 @@ public class TransactionController {
 
     @PostMapping("/versamento")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
-    public ResponseEntity<TransactionResponse> versamento(@Valid @RequestBody TransactionRequest request,
+    public ResponseEntity<TransactionResponse> versamento(@Valid @RequestBody DepositRequest request,
                                                            @AuthenticationPrincipal Jwt jwt,
                                                            Authentication authentication) {
         return ResponseEntity.ok(transactionservice.eseguiVersamento(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));

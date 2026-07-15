@@ -65,6 +65,13 @@ public class Transaction {
     @Column(nullable = true)
     private String description;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deposit_type_id", nullable = true)
+    private DepositType depositType;
+
+    @Column(name = "items_count", nullable = true)
+    private Integer itemsCount;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }

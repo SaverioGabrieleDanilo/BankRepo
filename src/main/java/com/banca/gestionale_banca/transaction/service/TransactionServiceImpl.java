@@ -2,18 +2,17 @@ package com.banca.gestionale_banca.transaction.service;
 
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
-import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
-import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
-import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
-import com.banca.gestionale_banca.transaction.dto.TransferRequest;
+import com.banca.gestionale_banca.transaction.dto.*;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.transaction.constants.StatiTransazione;
 import com.banca.gestionale_banca.transaction.constants.TipiTransazione;
+import com.banca.gestionale_banca.transaction.model.DepositType;
 import com.banca.gestionale_banca.transaction.model.Transaction;
 import com.banca.gestionale_banca.transaction.model.TransactionStatus;
 import com.banca.gestionale_banca.transaction.model.TransactionType;
+import com.banca.gestionale_banca.transaction.repository.DepositTypeRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionStatusRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionTypeRepository;
@@ -38,23 +37,25 @@ class TransactionServiceImpl implements TransactionService {
     private final TransactionRepository transactionRepository;
     private final TransactionTypeRepository transactionTypeRepository;
     private final TransactionStatusRepository transactionStatusRepository;
+    private final DepositTypeRepository depositTypeRepository;
     private final AccountLimitsService accountLimitsService;
     private final AuthorizationFacade authorizationFacade;
 
     @Override
     @Transactional
-    public TransactionResponse eseguiVersamento(TransactionRequest request, String keycloakId, boolean isEmployee) {
+    public TransactionResponse eseguiVersamento(DepositRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = trovaConto(request.getIban(), "Conto corrente non trovato");
         authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         bankAccountService.assertActive(account, "Il conto corrente non è attivo");
 
         TransactionType type = trovaTipo(TipiTransazione.VERSAMENTO);
         TransactionStatus status = trovaStatoEseguita();
+        DepositType depositType = trovaDepositType(request.getDepositType());
 
         account = bankAccountService.updateBalance(account, account.getBalance().add(request.getAmount()));
 
         Transaction transaction = registraMovimento(account, account, request.getAmount(),
-                request.getDescription(), type, status);
+                request.getDescription(), type, status, depositType, request.getItemsCount());
 
         return toResponse(transaction, account.getIban(), account.getBalance(), null);
     }
@@ -78,7 +79,7 @@ class TransactionServiceImpl implements TransactionService {
         account = bankAccountService.updateBalance(account, account.getBalance().subtract(request.getAmount()));
 
         Transaction transaction = registraMovimento(account, account, request.getAmount(),
-                request.getDescription(), type, status);
+                request.getDescription(), type, status, null, null);
 
         return toResponse(transaction, account.getIban(), account.getBalance(), null);
     }
@@ -113,7 +114,7 @@ class TransactionServiceImpl implements TransactionService {
         targetAccount = bankAccountService.updateBalance(targetAccount, targetAccount.getBalance().add(request.getAmount()));
 
         Transaction transaction = registraMovimento(sourceAccount, targetAccount, request.getAmount(),
-                request.getDescription() + " (Trattenuta: " + fee + "€)", type, status);
+                request.getDescription() + " (Trattenuta: " + fee + "€)", type, status, null, null);
 
         return toResponse(transaction, sourceAccount.getIban(), sourceAccount.getBalance(), fee);
     }
@@ -150,7 +151,7 @@ class TransactionServiceImpl implements TransactionService {
         targetAccount = bankAccountService.updateBalance(targetAccount, targetAccount.getBalance().add(request.getAmount()));
 
         Transaction transaction = registraMovimento(sourceAccount, targetAccount, request.getAmount(),
-                request.getDescription(), type, status);
+                request.getDescription(), type, status, null, null);
 
         return toResponse(transaction, sourceAccount.getIban(), sourceAccount.getBalance(), null);
     }
@@ -221,13 +222,19 @@ class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Tipo transazione " + name + " non configurato"));
     }
 
+    private DepositType trovaDepositType(String name) {
+        return depositTypeRepository.findByName(name)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo deposito " + name + " non configurato"));
+    }
+
     private TransactionStatus trovaStatoEseguita() {
         return transactionStatusRepository.findByName(StatiTransazione.ESEGUITA)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato transazione ESEGUITA non configurato"));
     }
 
     private Transaction registraMovimento(BankAccount payer, BankAccount payee, BigDecimal amount,
-                                           String description, TransactionType type, TransactionStatus status) {
+                                           String description, TransactionType type, TransactionStatus status,
+                                           DepositType depositType, Integer itemsCount) {
         LocalDateTime now = LocalDateTime.now();
         Transaction transaction = new Transaction();
         transaction.setAmount(amount);
@@ -241,6 +248,8 @@ class TransactionServiceImpl implements TransactionService {
         transaction.setPayeeUser(payee.getUser());
         transaction.setType(type);
         transaction.setStatus(status);
+        transaction.setDepositType(depositType);
+        transaction.setItemsCount(itemsCount);
         return transactionRepository.save(transaction);
     }
 
@@ -254,6 +263,8 @@ class TransactionServiceImpl implements TransactionService {
                 .updatedBalance(updatedBalance)
                 .status(tx.getStatus().getName())
                 .timestamp(tx.getTransactionDate())
+                .depositType(tx.getDepositType() != null ? tx.getDepositType().getName() : null)
+                .itemsCount(tx.getItemsCount())
                 .build();
     }
 }
