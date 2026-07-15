@@ -1,7 +1,7 @@
 package com.banca.gestionale_banca.transaction.model;
 
 import com.banca.gestionale_banca.account.model.BankAccount;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -56,11 +56,11 @@ public class Transaction {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payer_user", nullable = false)
-    private Utente payerUser;
+    private User payerUser;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payee_user", nullable = false)
-    private Utente payeeUser;
+    private User payeeUser;
 
     @Column(nullable = true)
     private String description;

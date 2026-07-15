@@ -19,7 +19,7 @@ import com.banca.gestionale_banca.user.dto.UserResponse;
 import com.banca.gestionale_banca.user.dto.UserStatusRequest;
 import com.banca.gestionale_banca.user.dto.RegistrationStatusRequest;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.service.UserService;
 
 import jakarta.validation.Valid;
@@ -34,14 +34,14 @@ public class UserController {
 
     @PostMapping("/registra")
     public ResponseEntity<UserResponse> registraUtente(@Valid @RequestBody RegisterRequest request) {
-        Utente user = userService.registraUtente(request);
+        User user = userService.registraUtente(request);
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
     @PostMapping("/admin/crea")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponse> creaUtenteConRuolo(@Valid @RequestBody AdminCreateUserRequest request) {
-        Utente user = userService.registraUtenteConRuolo(request, request.getRole());
+        User user = userService.registraUtenteConRuolo(request, request.getRole());
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
@@ -99,7 +99,7 @@ public class UserController {
             @AuthenticationPrincipal Jwt jwt,
             Authentication authentication) {
 
-        Utente user = userService.findById(id)
+        User user = userService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
 
         boolean isAdmin = authentication.getAuthorities().stream()

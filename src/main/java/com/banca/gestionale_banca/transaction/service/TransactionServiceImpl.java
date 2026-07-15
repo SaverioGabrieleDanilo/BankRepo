@@ -20,7 +20,7 @@ import com.banca.gestionale_banca.transaction.model.TransactionType;
 import com.banca.gestionale_banca.transaction.repository.TransactionRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionStatusRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionTypeRepository;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.repository.UserRepository;
 import com.banca.gestionale_banca.user.service.UserService;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
@@ -178,7 +178,7 @@ class TransactionServiceImpl implements TransactionService {
 public List<TransactionResponse> getUserTransactions(String username) {
 
     // 1. Cerchiamo l'utente sul database tramite lo username estratto dal JWT
-    Utente user = userRepository.findByUsername(username)
+    User user = userRepository.findByUsername(username)
             .orElseThrow(() -> new UsernameNotFoundException("Utente non trovato con username: " + username));
 
     // 2. Recuperiamo le entità reali "Transaction" dal database

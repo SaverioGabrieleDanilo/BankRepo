@@ -10,7 +10,7 @@ import com.banca.gestionale_banca.account.model.AccountStatus;
 import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.account.repository.AccountStatusRepository;
 import com.banca.gestionale_banca.account.repository.BankAccountRepository;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.repository.UserRepository;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.user.service.UserService;
@@ -40,7 +40,7 @@ class BankAccountServiceImpl implements BankAccountService {
     @Override
     @Transactional
     public BankAccountResponse apriConto(String keycloakId) {
-        Utente user = userService.findByKeycloakId(keycloakId)
+        User user = userService.findByKeycloakId(keycloakId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
 
         AccountStatus status = accountStatusRepository.findByName(StatiConto.IN_ATTESA)
@@ -157,11 +157,11 @@ class BankAccountServiceImpl implements BankAccountService {
     @Transactional(readOnly = true)
     public List<BankAccountResponseDTO> getUserBankAccountsByUsername(String username) {
         // 1. Cerchiamo l'utente sul database tramite lo username estratto dal JWT
-        Utente utente = userRepository.findByUsername(username)
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Utente non trovato con username: " + username));
 
         // 2. Usiamo l'ID dell'utente trovato per recuperare i conti correnti
-        List<BankAccount> accounts = bankAccountRepository.findByUserId(utente.getId());
+        List<BankAccount> accounts = bankAccountRepository.findByUserId(user.getId());
 
         // 3. Mappiamo nel DTO sicuro (identico a prima)
         return accounts.stream()

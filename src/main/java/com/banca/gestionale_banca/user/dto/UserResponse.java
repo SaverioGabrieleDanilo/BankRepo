@@ -3,7 +3,7 @@ package com.banca.gestionale_banca.user.dto;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -22,7 +22,7 @@ public class UserResponse {
     private String registrationStatus;
     private LocalDateTime createdAt;
 
-    public static UserResponse from(Utente u) {
+    public static UserResponse from(User u) {
         return UserResponse.builder()
                 .id(u.getId())
                 .username(u.getUsername())

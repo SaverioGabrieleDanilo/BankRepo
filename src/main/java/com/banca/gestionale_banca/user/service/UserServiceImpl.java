@@ -11,7 +11,7 @@ import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.user.model.RegistrationStatus;
 import com.banca.gestionale_banca.user.model.Role;
 import com.banca.gestionale_banca.user.model.UserStatus;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.repository.RegistrationStatusRepository;
 import com.banca.gestionale_banca.user.repository.RoleRepository;
 import com.banca.gestionale_banca.user.repository.UserRepository;
@@ -56,16 +56,16 @@ class UserServiceImpl implements UserService {
     // niente @Transactional qui, per non tenere aperta una connessione DB per
     // tutta la durata della chiamata esterna (vedi audit UserServiceImpl).
     @Override
-    public Utente registraUtente(RegisterRequest request) {
+    public User registraUtente(RegisterRequest request) {
         return creaUtente(request, Ruoli.CUSTOMER);
     }
 
     @Override
-    public Utente registraUtenteConRuolo(RegisterRequest request, String role) {
+    public User registraUtenteConRuolo(RegisterRequest request, String role) {
         return creaUtente(request, role);
     }
 
-    private Utente creaUtente(RegisterRequest request, String roleName) {
+    private User creaUtente(RegisterRequest request, String roleName) {
         if (userrepo.existsByUsername(request.getUsername())) {
             throw new ConflictException("Username già in uso");
         }
@@ -137,7 +137,7 @@ class UserServiceImpl implements UserService {
             RegistrationStatus pending = registrationStatusRepository.findByName(StatiRegistrazione.PENDING)
                     .orElseThrow(() -> new ResourceNotFoundException("Stato PENDING non trovato"));
 
-            Utente u = new Utente();
+            User u = new User();
             u.setKeycloakId(keycloakId);
             u.setUsername(request.getUsername());
             u.setEmail(request.getEmail());
@@ -180,14 +180,14 @@ class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<Utente> findById(Long id) { return userrepo.findByIdWithDetails(id); }
+    public Optional<User> findById(Long id) { return userrepo.findByIdWithDetails(id); }
 
     @Override
-    public Optional<Utente> findByKeycloakId(String keycloakId) { return userrepo.findByKeycloakId(keycloakId); }
+    public Optional<User> findByKeycloakId(String keycloakId) { return userrepo.findByKeycloakId(keycloakId); }
 
     @Override
-    public Utente modificaUtente(Long id, UpdateUserRequest request) {
-        Utente u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+    public User modificaUtente(Long id, UpdateUserRequest request) {
+        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
 
         // Risolve il ruolo PRIMA di qualunque chiamata Keycloak: se il ruolo richiesto
         // non esiste, deve fallire qui senza aver già sincronizzato l'email, altrimenti
@@ -222,8 +222,8 @@ class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Utente cambiaStatoUtente(Long id, String statusName) {
-        Utente u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+    public User cambiaStatoUtente(Long id, String statusName) {
+        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
         UserStatus newStatus = userStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato '" + statusName + "' non valido"));
 
@@ -245,8 +245,8 @@ class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Utente cambiaStatoRegistrazione(Long id, String statusName) {
-        Utente u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+    public User cambiaStatoRegistrazione(Long id, String statusName) {
+        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
         RegistrationStatus newStatus = registrationStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato di registrazione '" + statusName + "' non valido"));
 
@@ -258,7 +258,7 @@ class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Page<Utente> getUtentiPaginati(Pageable pageable) {
+    public Page<User> getUtentiPaginati(Pageable pageable) {
         return userrepo.findAllWithDetails(pageable);
     }
 
