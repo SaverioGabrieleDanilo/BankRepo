@@ -1,5 +1,7 @@
 package com.banca.gestionale_banca.transaction.controller;
 
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -17,6 +19,7 @@ import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
 import com.banca.gestionale_banca.transaction.service.TransactionService;
+import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 
 import jakarta.validation.Valid;
@@ -65,5 +68,15 @@ public class TransactionController {
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<TransactionResponse> getTransazione(@PathVariable Long id) {
         return ResponseEntity.ok(transactionservice.getTransazioneById(id));
+    }
+
+    @GetMapping("/user-transfers")
+    public ResponseEntity<List<TransactionResponse>> getUserTransactions(@AuthenticationPrincipal Jwt jwt){
+
+        String username = jwt.getClaimAsString("preferred_username"); 
+
+        List<TransactionResponse> transactions = transactionservice.getUserTransactions(username);
+        return ResponseEntity.ok(transactions);
+
     }
 }

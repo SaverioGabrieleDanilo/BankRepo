@@ -8,6 +8,9 @@ import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
+import com.banca.gestionale_banca.account.constants.StatiConto;
+import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
+import com.banca.gestionale_banca.account.model.AccountStatus;
 import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.transaction.constants.StatiTransazione;
 import com.banca.gestionale_banca.transaction.constants.TipiTransazione;
@@ -17,8 +20,13 @@ import com.banca.gestionale_banca.transaction.model.TransactionType;
 import com.banca.gestionale_banca.transaction.repository.TransactionRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionStatusRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionTypeRepository;
+import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.repository.UserRepository;
+import com.banca.gestionale_banca.user.service.UserService;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -40,6 +48,7 @@ class TransactionServiceImpl implements TransactionService {
     private final TransactionStatusRepository transactionStatusRepository;
     private final AccountLimitsService accountLimitsService;
     private final AuthorizationFacade authorizationFacade;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
@@ -156,13 +165,50 @@ class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public TransactionResponse getTransazioneById(Long id) {
         Transaction tx = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transazione non trovata"));
 
         return toResponse(tx, tx.getPayerAccount().getIban(), tx.getPayerAccount().getBalance(), null);
     }
+
+   @Override
+   @Transactional(readOnly = true)
+public List<TransactionResponse> getUserTransactions(String username) {
+
+    // 1. Cerchiamo l'utente sul database tramite lo username estratto dal JWT
+    Utente user = userRepository.findByUsername(username)
+            .orElseThrow(() -> new UsernameNotFoundException("Utente non trovato con username: " + username));
+
+    // 2. Recuperiamo le entità reali "Transaction" dal database
+    List<Transaction> transactions = transactionRepository.findAllByUserId(user.getId());
+
+    // 3. Mappiamo nel DTO sicuro riutilizzando il tuo metodo "toResponse"
+    return transactions.stream()
+            .map(t -> {
+                // Decidiamo quale IBAN mostrare
+                String ibanMostrato = "";
+                if (t.getPayerUser() != null && t.getPayerUser().getId().equals(user.getId())) {
+                    ibanMostrato = t.getPayeeAccount() != null ? t.getPayeeAccount().getIban() : "";
+                } else {
+                    ibanMostrato = t.getPayerAccount() != null ? t.getPayerAccount().getIban() : "";
+                }
+
+                // Calcoliamo la fee al volo solo se la transazione era un bonifico
+                BigDecimal fee = null;
+                if (TipiTransazione.BONIFICO.equals(t.getType().getName())) {
+                    fee = t.getAmount().multiply(FEE_PERCENTAGE).setScale(2, RoundingMode.HALF_EVEN);
+                }
+
+                // Impostiamo il saldo aggiornato a null (storicamente non lo abbiamo salvato)
+                BigDecimal updatedBalance = null;
+
+                // Usiamo il tuo metodo privato toResponse!
+                return toResponse(t, ibanMostrato, updatedBalance, fee);
+            })
+            .toList();
+}
 
     private BankAccount trovaConto(String iban, String messageIfNotFound) {
         return bankAccountService.lockForUpdate(iban, messageIfNotFound);

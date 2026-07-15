@@ -2,6 +2,7 @@ package com.banca.gestionale_banca.account.service;
 
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
+import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.account.constants.StatiConto;
@@ -10,17 +11,20 @@ import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.account.repository.AccountStatusRepository;
 import com.banca.gestionale_banca.account.repository.BankAccountRepository;
 import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.repository.UserRepository;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.user.service.UserService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -31,6 +35,7 @@ class BankAccountServiceImpl implements BankAccountService {
     private final AccountStatusRepository accountStatusRepository;
     private final UserService userService;
     private final AuthorizationFacade authorizationFacade;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
@@ -66,7 +71,8 @@ class BankAccountServiceImpl implements BankAccountService {
             throw new ConflictException("Il conto non è in attesa di approvazione");
         }
 
-        AccountStatus newStatus = accountStatusRepository.findByName(approved ? StatiConto.ATTIVO : StatiConto.RIFIUTATO)
+        AccountStatus newStatus = accountStatusRepository
+                .findByName(approved ? StatiConto.ATTIVO : StatiConto.RIFIUTATO)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato conto non configurato"));
 
         account.setStatus(newStatus);
@@ -82,7 +88,8 @@ class BankAccountServiceImpl implements BankAccountService {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a chiudere questo conto");
+        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee,
+                "Non autorizzato a chiudere questo conto");
 
         if (account.getBalance().compareTo(BigDecimal.ZERO) != 0) {
             throw new ConflictException("Impossibile chiudere il conto: il saldo deve essere zero");
@@ -144,5 +151,30 @@ class BankAccountServiceImpl implements BankAccountService {
     public BankAccount updateBalance(BankAccount account, BigDecimal newBalance) {
         account.setBalance(newBalance);
         return bankAccountRepository.save(account);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BankAccountResponseDTO> getUserBankAccountsByUsername(String username) {
+        // 1. Cerchiamo l'utente sul database tramite lo username estratto dal JWT
+        Utente utente = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Utente non trovato con username: " + username));
+
+        // 2. Usiamo l'ID dell'utente trovato per recuperare i conti correnti
+        List<BankAccount> accounts = bankAccountRepository.findByUserId(utente.getId());
+
+        // 3. Mappiamo nel DTO sicuro (identico a prima)
+        return accounts.stream()
+                .map(acc -> new BankAccountResponseDTO(
+                        acc.getId(),
+                        acc.getIban(),
+                        acc.getBalance(),
+                        acc.getContableBalance(),
+                        acc.getUser().getId(),
+                        acc.getStatus() != null ? acc.getStatus().getName() : null,
+                        acc.getOpeningDate(),
+                        acc.getCreatedAt()
+                ))
+                .toList();
     }
 }

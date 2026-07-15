@@ -1,5 +1,7 @@
 package com.banca.gestionale_banca.account.controller;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,9 +27,12 @@ import com.banca.gestionale_banca.account.dto.AccountLimitsResponse;
 import com.banca.gestionale_banca.account.dto.ApproveAccountRequest;
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
+import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
+import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
+import com.banca.gestionale_banca.user.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,6 +44,7 @@ public class BankAccountController {
     private final BankAccountService bankAccountService;
     private final AccountLimitsService accountLimitsService;
     private final AuthorizationFacade authorizationFacade;
+    private final UserRepository userRepository;
 
     @PostMapping("/apertura")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
@@ -48,16 +54,18 @@ public class BankAccountController {
 
     @PatchMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
-    public ResponseEntity<BankAccountResponse> approvaConto(@PathVariable Long id, @RequestBody ApproveAccountRequest request) {
+    public ResponseEntity<BankAccountResponse> approvaConto(@PathVariable Long id,
+            @RequestBody ApproveAccountRequest request) {
         return ResponseEntity.ok(bankAccountService.approvaConto(id, request.isApproved()));
     }
 
     @PostMapping("/{id}/chiusura")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<BankAccountResponse> chiudiConto(@PathVariable Long id,
-                                                            @AuthenticationPrincipal Jwt jwt,
-                                                            Authentication authentication) {
-        return ResponseEntity.ok(bankAccountService.chiudiConto(id, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                bankAccountService.chiudiConto(id, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
     @GetMapping
@@ -70,17 +78,32 @@ public class BankAccountController {
         return ResponseEntity.ok(bankAccountService.listaConti(pageable));
     }
 
+
+    @GetMapping("/user-accounts")
+    public ResponseEntity<List<BankAccountResponseDTO>> getMyAccounts(@AuthenticationPrincipal Jwt jwt) {
+        // Estrae il claim desiderato dal token (es. "preferred_username" o "sub" o "email")
+        String username = jwt.getClaimAsString("preferred_username"); 
+        
+        // Se nel tuo token lo username si trova nel claim standard "sub", puoi usare:
+        // String username = jwt.getSubject();
+
+        List<BankAccountResponseDTO> accounts = bankAccountService.getUserBankAccountsByUsername(username);
+        return ResponseEntity.ok(accounts);
+    }
+
     @GetMapping("/{id}/limits")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<AccountLimitsResponse> getLimiti(@PathVariable Long id,
-                                                            @AuthenticationPrincipal Jwt jwt,
-                                                            Authentication authentication) {
-        return ResponseEntity.ok(accountLimitsService.getLimiti(id, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                accountLimitsService.getLimiti(id, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
     @PutMapping("/{id}/limits")
     @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
-    public ResponseEntity<AccountLimitsResponse> impostaLimiti(@PathVariable Long id, @Valid @RequestBody AccountLimitsRequest request) {
+    public ResponseEntity<AccountLimitsResponse> impostaLimiti(@PathVariable Long id,
+            @Valid @RequestBody AccountLimitsRequest request) {
         return ResponseEntity.ok(accountLimitsService.impostaLimiti(id, request));
     }
 }

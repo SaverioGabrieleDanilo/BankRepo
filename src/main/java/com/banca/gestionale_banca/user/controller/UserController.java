@@ -54,6 +54,34 @@ public class UserController {
                 .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
     }
 
+    // @GetMapping("/{id}")
+    // public ResponseEntity<UserResponse> getUtenteById(@PathVariable Long id,
+    //         @AuthenticationPrincipal Jwt jwt,
+    //         Authentication authentication) {
+    //     Utente user = userService.findById(id)
+    //             .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+
+    //     boolean isAdmin = authentication.getAuthorities().stream()
+    //             .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    //     boolean isOwner = jwt.getSubject().equals(user.getKeycloakId());
+
+    //     if (!isAdmin && !isOwner) {
+    //         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato a consultare questo utente");
+    //     }
+
+    //     return ResponseEntity.ok(UserResponse.from(user));
+    // }
+
+    @GetMapping("/check")
+    // @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    public ResponseEntity<String> testRoute(@AuthenticationPrincipal Jwt jwt) {
+        // Estraiamo l'username dal token per confermare che Keycloak sta parlando con Spring
+        String username = jwt.getClaimAsString("preferred_username");
+        
+        // Ritorniamo un messaggio di successo
+        return ResponseEntity.ok("Connessione OK! Token valido per l'utente: " + username);
+    }
+
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Page<UserResponse>> getUtentiPaginati(
