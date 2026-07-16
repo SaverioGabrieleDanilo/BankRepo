@@ -6,7 +6,7 @@ import com.banca.gestionale_banca.account.repository.BankAccountRepository;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.account.model.AccountStatus;
 import com.banca.gestionale_banca.account.model.BankAccount;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.user.service.UserService;
 
@@ -45,7 +45,7 @@ class BankAccountServiceImplTest {
 
     @Test
     void apriConto_creaContoConSaldoZeroEStatoInAttesa() {
-        Utente user = new Utente();
+        User user = new User();
         user.setKeycloakId("user-1");
         when(userService.findByKeycloakId("user-1")).thenReturn(Optional.of(user));
         when(accountStatusRepository.findByName("IN_ATTESA")).thenReturn(Optional.of(new AccountStatus("IN_ATTESA")));
@@ -59,7 +59,7 @@ class BankAccountServiceImplTest {
 
     @Test
     void chiudiConto_saldoDiversoDaZero_lanciaConflictException() {
-        Utente user = new Utente();
+        User user = new User();
         user.setKeycloakId("user-1");
 
         BankAccount account = new BankAccount();
@@ -73,7 +73,7 @@ class BankAccountServiceImplTest {
 
     @Test
     void chiudiConto_nonProprietario_lanciaForbidden() {
-        Utente user = new Utente();
+        User user = new User();
         user.setKeycloakId("user-1");
 
         BankAccount account = new BankAccount();

@@ -38,11 +38,6 @@ public class GlobalExceptionHandler {
         return body(HttpStatus.BAD_GATEWAY, e.getPublicMessage());
     }
 
-    @ExceptionHandler(BusinessRuleException.class)
-    public ResponseEntity<Map<String, Object>> handleBusinessRule(BusinessRuleException e) {
-        return body(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
-    }
-
     @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<Map<String, Object>> handleOptimisticLock(Exception e) {
         return body(HttpStatus.CONFLICT, "Operazione concorrente rilevata sul conto, riprova");

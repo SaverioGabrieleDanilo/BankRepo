@@ -49,14 +49,14 @@ class TransactionControllerTest {
 
     private TransactionRequest movimentoRequest() {
         TransactionRequest request = new TransactionRequest();
-        request.setIban("IT60X0542811101000000123456");
+        request.setIban("IT1234567890ABCDEF0001");
         request.setAmount(BigDecimal.valueOf(100));
         return request;
     }
 
     private DepositRequest depositoRequest() {
         DepositRequest request = new DepositRequest();
-        request.setIban("IT60X0542811101000000123456");
+        request.setIban("IT1234567890ABCDEF0001");
         request.setAmount(BigDecimal.valueOf(100));
         request.setDepositType("CASH");
         request.setItemsCount(1);
@@ -65,16 +65,16 @@ class TransactionControllerTest {
 
     private TransferRequest transferRequest() {
         TransferRequest request = new TransferRequest();
-        request.setSourceIban("IT60X0542811101000000123456");
-        request.setTargetIban("IT60X0542811101000000654321");
+        request.setSourceIban("IT1234567890ABCDEF0001");
+        request.setTargetIban("IT1234567890ABCDEF0002");
         request.setAmount(BigDecimal.valueOf(100));
         return request;
     }
 
     private GirocontoRequest girocontoRequest() {
         GirocontoRequest request = new GirocontoRequest();
-        request.setSourceIban("IT60X0542811101000000123456");
-        request.setTargetIban("IT60X0542811101000000654321");
+        request.setSourceIban("IT1234567890ABCDEF0001");
+        request.setTargetIban("IT1234567890ABCDEF0002");
         request.setAmount(BigDecimal.valueOf(100));
         return request;
     }

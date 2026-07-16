@@ -1,5 +1,6 @@
 package com.banca.gestionale_banca.transaction.service;
 
+import com.banca.gestionale_banca.account.repository.BankAccountRepository;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.account.dto.AccountLimitsResponse;
@@ -16,9 +17,11 @@ import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.account.model.AccountStatus;
 import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.transaction.model.DepositType;
+import com.banca.gestionale_banca.transaction.model.Transaction;
 import com.banca.gestionale_banca.transaction.model.TransactionStatus;
 import com.banca.gestionale_banca.transaction.model.TransactionType;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
+import com.banca.gestionale_banca.user.service.UserService;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -40,6 +44,8 @@ class TransactionServiceImplTest {
     @Mock
     private BankAccountService bankAccountService;
     @Mock
+    private BankAccountRepository bankAccountRepository;
+    @Mock
     private TransactionRepository transactionRepository;
     @Mock
     private TransactionTypeRepository transactionTypeRepository;
@@ -49,14 +55,16 @@ class TransactionServiceImplTest {
     private DepositTypeRepository depositTypeRepository;
     @Mock
     private AccountLimitsService accountLimitsService;
+    @Mock
+    private UserService userService;
 
     private TransactionServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new TransactionServiceImpl(bankAccountService, transactionRepository,
+        service = new TransactionServiceImpl(bankAccountService, bankAccountRepository, transactionRepository,
                 transactionTypeRepository, transactionStatusRepository, depositTypeRepository, accountLimitsService,
-                new AuthorizationFacade());
+                new AuthorizationFacade(), userService);
 
         lenient().when(transactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(transactionTypeRepository.findByName(any())).thenAnswer(invocation ->
@@ -75,7 +83,7 @@ class TransactionServiceImplTest {
     }
 
     private BankAccount contoAttivo(String iban, BigDecimal balance, String keycloakId) {
-        Utente user = new Utente();
+        User user = new User();
         user.setKeycloakId(keycloakId);
 
         AccountStatus active = new AccountStatus("ATTIVO");
@@ -180,5 +188,69 @@ class TransactionServiceImplTest {
                 () -> service.eseguiVersamento(request, "un-altro-utente", false));
 
         assertEquals(403, ex.getStatusCode().value());
+    }
+
+    private Transaction bonificoTraDueUtenti(User payer, User payee) {
+        BankAccount payerAccount = new BankAccount();
+        payerAccount.setIban("IT60X0000000000000000000010");
+        payerAccount.setUser(payer);
+
+        BankAccount payeeAccount = new BankAccount();
+        payeeAccount.setIban("IT60X0000000000000000000011");
+        payeeAccount.setUser(payee);
+
+        Transaction tx = new Transaction();
+        tx.setId(99L);
+        tx.setAmount(new BigDecimal("100.00"));
+        tx.setType(new TransactionType(com.banca.gestionale_banca.transaction.constants.TipiTransazione.BONIFICO));
+        tx.setStatus(new TransactionStatus("ESEGUITA"));
+        tx.setPayerAccount(payerAccount);
+        tx.setPayeeAccount(payeeAccount);
+        tx.setPayerUser(payer);
+        tx.setPayeeUser(payee);
+        tx.setTransactionDate(java.time.LocalDateTime.now());
+        return tx;
+    }
+
+    @Test
+    void getUserTransactions_comePagatore_mostraIlPropioIbanEUnaFee() {
+        User payer = new User();
+        payer.setId(1L);
+        payer.setKeycloakId("payer-kc");
+        User payee = new User();
+        payee.setId(2L);
+        payee.setKeycloakId("payee-kc");
+
+        Transaction tx = bonificoTraDueUtenti(payer, payee);
+
+        when(userService.findByKeycloakId("payer-kc")).thenReturn(Optional.of(payer));
+        when(transactionRepository.findAllByUserId(1L)).thenReturn(List.of(tx));
+
+        List<TransactionResponse> result = service.getUserTransactions("payer-kc");
+
+        assertEquals(1, result.size());
+        assertEquals("IT60X0000000000000000000010", result.get(0).getIban());
+        assertEquals(new BigDecimal("2.00"), result.get(0).getFee());
+    }
+
+    @Test
+    void getUserTransactions_comeBeneficiario_mostraIlPropioIbanSenzaFee() {
+        User payer = new User();
+        payer.setId(1L);
+        payer.setKeycloakId("payer-kc");
+        User payee = new User();
+        payee.setId(2L);
+        payee.setKeycloakId("payee-kc");
+
+        Transaction tx = bonificoTraDueUtenti(payer, payee);
+
+        when(userService.findByKeycloakId("payee-kc")).thenReturn(Optional.of(payee));
+        when(transactionRepository.findAllByUserId(2L)).thenReturn(List.of(tx));
+
+        List<TransactionResponse> result = service.getUserTransactions("payee-kc");
+
+        assertEquals(1, result.size());
+        assertEquals("IT60X0000000000000000000011", result.get(0).getIban());
+        assertEquals(null, result.get(0).getFee());
     }
 }

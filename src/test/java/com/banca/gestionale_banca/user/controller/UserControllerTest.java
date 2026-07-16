@@ -5,7 +5,7 @@ import com.banca.gestionale_banca.user.dto.UpdateUserRequest;
 import com.banca.gestionale_banca.user.model.RegistrationStatus;
 import com.banca.gestionale_banca.user.model.Role;
 import com.banca.gestionale_banca.user.model.UserStatus;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -25,6 +25,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,8 +41,8 @@ class UserControllerTest {
     @MockitoBean
     private UserService userService;
 
-    private Utente contoCustomer() {
-        Utente u = new Utente();
+    private User contoCustomer() {
+        User u = new User();
         u.setId(1L);
         u.setKeycloakId("customer-keycloak-id");
         return u;
@@ -49,11 +50,11 @@ class UserControllerTest {
 
     /**
      * UserResponse.from() chiama getRole()/getStatus()/getRegistrationStatus() senza
-     * controlli null: il valore restituito da modificaUtente() deve averli popolati,
+     * controlli null: il valore restituito da updateUser() deve averli popolati,
      * altrimenti la mappatura verso la response va in NullPointerException (-> 500).
      */
-    private Utente contoCustomerCompleto() {
-        Utente u = contoCustomer();
+    private User contoCustomerCompleto() {
+        User u = contoCustomer();
         u.setUsername("mario.rossi");
         u.setEmail("mario.rossi@example.com");
         u.setFirstName("Mario");
@@ -78,13 +79,13 @@ class UserControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
 
-        verify(userService, never()).modificaUtente(any(), any());
+        verify(userService, never()).updateUser(any(), any());
     }
 
     @Test
     void ownerNonAdmin_modificaSoloEmail_vieneAccettato() throws Exception {
         when(userService.findById(1L)).thenReturn(Optional.of(contoCustomer()));
-        when(userService.modificaUtente(eq(1L), any())).thenReturn(contoCustomerCompleto());
+        when(userService.updateUser(eq(1L), any())).thenReturn(contoCustomerCompleto());
 
         UpdateUserRequest request = new UpdateUserRequest();
         request.setEmail("nuova@email.it");
@@ -96,13 +97,13 @@ class UserControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
-        verify(userService).modificaUtente(eq(1L), any());
+        verify(userService).updateUser(eq(1L), any());
     }
 
     @Test
     void admin_puoCambiareIlRuoloDiUnAltroUtente() throws Exception {
         when(userService.findById(1L)).thenReturn(Optional.of(contoCustomer()));
-        when(userService.modificaUtente(eq(1L), any())).thenReturn(contoCustomerCompleto());
+        when(userService.updateUser(eq(1L), any())).thenReturn(contoCustomerCompleto());
 
         UpdateUserRequest request = new UpdateUserRequest();
         request.setRole("EMPLOYEE");
@@ -114,6 +115,46 @@ class UserControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
-        verify(userService).modificaUtente(eq(1L), any());
+        verify(userService).updateUser(eq(1L), any());
+    }
+
+    @Test
+    void owner_leggeIlProprioProfilo_e200() throws Exception {
+        when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
+
+        mockMvc.perform(get("/api/utenti/1")
+                        .with(jwt().jwt(j -> j.subject("customer-keycloak-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void employee_leggeIlProprioProfilo_e200() throws Exception {
+        when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
+
+        mockMvc.perform(get("/api/utenti/1")
+                        .with(jwt().jwt(j -> j.subject("customer-keycloak-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void admin_leggeProfiloDiUnAltroUtente_e200() throws Exception {
+        when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
+
+        mockMvc.perform(get("/api/utenti/1")
+                        .with(jwt().jwt(j -> j.subject("admin-keycloak-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void nonOwnerNonAdmin_leggeProfiloAltrui_vieneRifiutatoCon403() throws Exception {
+        when(userService.findById(1L)).thenReturn(Optional.of(contoCustomer()));
+
+        mockMvc.perform(get("/api/utenti/1")
+                        .with(jwt().jwt(j -> j.subject("un-altro-customer-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .andExpect(status().isForbidden());
     }
 }

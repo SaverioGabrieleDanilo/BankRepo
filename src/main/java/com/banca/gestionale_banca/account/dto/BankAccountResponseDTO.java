@@ -2,17 +2,22 @@ package com.banca.gestionale_banca.account.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-
-import lombok.Builder;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
-@Builder
-public class BankAccountResponse {
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+public class BankAccountResponseDTO {
     private Long id;
     private String iban;
     private BigDecimal balance;
     private BigDecimal contableBalance;
-    private String status;
+    private Long userId;
+    private String statusName;
     private LocalDateTime openingDate;
+    private LocalDateTime createdAt;
 }
