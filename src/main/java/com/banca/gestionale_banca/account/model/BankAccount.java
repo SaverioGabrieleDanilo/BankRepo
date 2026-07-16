@@ -1,5 +1,7 @@
 package com.banca.gestionale_banca.account.model;
 
+import com.banca.gestionale_banca.account.constants.StatiConto;
+import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.user.model.User;
 
 import java.math.BigDecimal;
@@ -47,7 +49,6 @@ public class BankAccount {
     @JoinColumn(name = "status_id", nullable = false)
     private AccountStatus status;
 
-
     @Column(name = "opening_date", nullable = false)
     private LocalDateTime openingDate;
 
@@ -63,4 +64,19 @@ public class BankAccount {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    public void versa(BigDecimal amount) {
+        this.balance = this.balance.add(amount);
+    }
+
+    public void preleva(BigDecimal amount) {
+        if (this.balance.compareTo(amount) < 0) {
+            throw new ConflictException("Saldo insufficiente");
+        }
+        this.balance = this.balance.subtract(amount);
+    }
+
+    public boolean isAttivo() {
+        return StatiConto.ATTIVO.equals(this.getStatus().getName());
+    }
 }

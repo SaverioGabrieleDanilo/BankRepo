@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.banca.gestionale_banca.transaction.dto.BankAccountTransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
@@ -35,33 +36,37 @@ public class TransactionController {
     @PostMapping("/versamento")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
     public ResponseEntity<TransactionResponse> versamento(@Valid @RequestBody TransactionRequest request,
-                                                           @AuthenticationPrincipal Jwt jwt,
-                                                           Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiVersamento(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication) {
+        return ResponseEntity.ok(transactionservice.eseguiVersamento(request, jwt.getSubject(),
+                authorizationFacade.isEmployee(authentication)));
     }
 
     @PostMapping("/prelievo")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
     public ResponseEntity<TransactionResponse> prelievo(@Valid @RequestBody TransactionRequest request,
-                                                         @AuthenticationPrincipal Jwt jwt,
-                                                         Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiPrelievo(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication) {
+        return ResponseEntity.ok(transactionservice.eseguiPrelievo(request, jwt.getSubject(),
+                authorizationFacade.isEmployee(authentication)));
     }
 
     @PostMapping("/transfer")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<TransactionResponse> bonifico(@Valid @RequestBody TransferRequest request,
-                                                         @AuthenticationPrincipal Jwt jwt,
-                                                         Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiBonifico(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication) {
+        return ResponseEntity.ok(transactionservice.eseguiBonifico(request, jwt.getSubject(),
+                authorizationFacade.isEmployee(authentication)));
     }
 
     @PostMapping("/giroconto")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<TransactionResponse> giroconto(@Valid @RequestBody GirocontoRequest request,
-                                                          @AuthenticationPrincipal Jwt jwt,
-                                                          Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiGiroconto(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication) {
+        return ResponseEntity.ok(transactionservice.eseguiGiroconto(request, jwt.getSubject(),
+                authorizationFacade.isEmployee(authentication)));
     }
 
     @GetMapping("/{id}")
@@ -71,12 +76,23 @@ public class TransactionController {
     }
 
     @GetMapping("/user-transfers")
-    public ResponseEntity<List<TransactionResponse>> getUserTransactions(@AuthenticationPrincipal Jwt jwt){
+    public ResponseEntity<List<TransactionResponse>> getUserTransactions(@AuthenticationPrincipal Jwt jwt) {
 
-        String username = jwt.getClaimAsString("preferred_username"); 
+        String username = jwt.getClaimAsString("preferred_username");
 
         List<TransactionResponse> transactions = transactionservice.getUserTransactions(username);
         return ResponseEntity.ok(transactions);
 
     }
+
+    @PostMapping("/bank-account-transfers")
+    public ResponseEntity<List<TransactionResponse>> getBankAccountTransactions(
+            @RequestBody BankAccountTransactionRequest request) {
+
+        // Estraiamo l'IBAN dal body della richiesta
+        List<TransactionResponse> transactions = transactionservice.getBankAccountTransactions(request.getIban());
+
+        return ResponseEntity.ok(transactions);
+    }
 }
+

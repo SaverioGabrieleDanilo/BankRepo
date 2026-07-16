@@ -29,7 +29,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-class BankAccountServiceImpl implements BankAccountService {
+public class BankAccountServiceImpl implements BankAccountService {
 
     private final BankAccountRepository bankAccountRepository;
     private final AccountStatusRepository accountStatusRepository;
@@ -56,6 +56,8 @@ class BankAccountServiceImpl implements BankAccountService {
         account.setOpeningDate(now);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
+        
+        // Qui il save() serve perché stiamo creando un NUOVO record
         account = bankAccountRepository.save(account);
 
         return toResponse(account);
@@ -77,7 +79,9 @@ class BankAccountServiceImpl implements BankAccountService {
 
         account.setStatus(newStatus);
         account.setUpdatedAt(LocalDateTime.now());
-        account = bankAccountRepository.save(account);
+        
+        // Nessun bankAccountRepository.save(account) richiesto! 
+        // L'entità è gestita. JPA invierà l'UPDATE da solo a fine transazione.
 
         return toResponse(account);
     }
@@ -100,12 +104,14 @@ class BankAccountServiceImpl implements BankAccountService {
 
         account.setStatus(closed);
         account.setUpdatedAt(LocalDateTime.now());
-        account = bankAccountRepository.save(account);
+        
+        // Anche qui, JPA gestirà l'UPDATE in automatico
 
         return toResponse(account);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<BankAccountAdminResponse> listaConti(Pageable pageable) {
         return bankAccountRepository.findAllWithUser(pageable)
                 .map(account -> BankAccountAdminResponse.builder()
@@ -119,20 +125,6 @@ class BankAccountServiceImpl implements BankAccountService {
                         .build());
     }
 
-    private String generaIban() {
-        return "IT" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
-    }
-
-    private BankAccountResponse toResponse(BankAccount account) {
-        return BankAccountResponse.builder()
-                .id(account.getId())
-                .iban(account.getIban())
-                .balance(account.getBalance())
-                .status(account.getStatus().getName())
-                .openingDate(account.getOpeningDate())
-                .build();
-    }
-
     @Override
     public BankAccount lockForUpdate(String iban, String messageIfNotFound) {
         return bankAccountRepository.findByIbanForUpdate(iban)
@@ -140,30 +132,13 @@ class BankAccountServiceImpl implements BankAccountService {
     }
 
     @Override
-    public void assertActive(BankAccount account, String messageIfNotActive) {
-        if (!StatiConto.ATTIVO.equals(account.getStatus().getName())) {
-            throw new ConflictException(messageIfNotActive);
-        }
-    }
-
-    @Override
-    @Transactional
-    public BankAccount updateBalance(BankAccount account, BigDecimal newBalance) {
-        account.setBalance(newBalance);
-        return bankAccountRepository.save(account);
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public List<BankAccountResponseDTO> getUserBankAccountsByUsername(String username) {
-        // 1. Cerchiamo l'utente sul database tramite lo username estratto dal JWT
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Utente non trovato con username: " + username));
 
-        // 2. Usiamo l'ID dell'utente trovato per recuperare i conti correnti
         List<BankAccount> accounts = bankAccountRepository.findByUserId(user.getId());
 
-        // 3. Mappiamo nel DTO sicuro (identico a prima)
         return accounts.stream()
                 .map(acc -> new BankAccountResponseDTO(
                         acc.getId(),
@@ -176,5 +151,21 @@ class BankAccountServiceImpl implements BankAccountService {
                         acc.getCreatedAt()
                 ))
                 .toList();
+    }
+
+    // --- METODI HELPER PRIVATI ---
+
+    private String generaIban() {
+        return "IT" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
+    }
+
+    private BankAccountResponse toResponse(BankAccount account) {
+        return BankAccountResponse.builder()
+                .id(account.getId())
+                .iban(account.getIban())
+                .balance(account.getBalance())
+                .status(account.getStatus().getName())
+                .openingDate(account.getOpeningDate())
+                .build();
     }
 }
