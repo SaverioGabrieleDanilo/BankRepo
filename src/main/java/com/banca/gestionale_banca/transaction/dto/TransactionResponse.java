@@ -17,4 +17,6 @@ public class TransactionResponse {
     private BigDecimal updatedBalance;
     private String status;
     private LocalDateTime timestamp;
+    private String depositType;
+    private Integer itemsCount;
 }

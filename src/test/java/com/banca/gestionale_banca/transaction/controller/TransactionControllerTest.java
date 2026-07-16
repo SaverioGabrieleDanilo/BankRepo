@@ -2,6 +2,7 @@ package com.banca.gestionale_banca.transaction.controller;
 
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.shared.security.SecurityConfig;
+import com.banca.gestionale_banca.transaction.dto.DepositRequest;
 import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
@@ -50,23 +51,32 @@ class TransactionControllerTest {
 
     private TransactionRequest movimentoRequest() {
         TransactionRequest request = new TransactionRequest();
-        request.setIban("IT60X0542811101000000123456");
+        request.setIban("IT1234567890ABCDEF0001");
         request.setAmount(BigDecimal.valueOf(100));
+        return request;
+    }
+
+    private DepositRequest depositoRequest() {
+        DepositRequest request = new DepositRequest();
+        request.setIban("IT1234567890ABCDEF0001");
+        request.setAmount(BigDecimal.valueOf(100));
+        request.setDepositType("CASH");
+        request.setItemsCount(1);
         return request;
     }
 
     private TransferRequest transferRequest() {
         TransferRequest request = new TransferRequest();
-        request.setSourceIban("IT60X0542811101000000123456");
-        request.setTargetIban("IT60X0542811101000000654321");
+        request.setSourceIban("IT1234567890ABCDEF0001");
+        request.setTargetIban("IT1234567890ABCDEF0002");
         request.setAmount(BigDecimal.valueOf(100));
         return request;
     }
 
     private GirocontoRequest girocontoRequest() {
         GirocontoRequest request = new GirocontoRequest();
-        request.setSourceIban("IT60X0542811101000000123456");
-        request.setTargetIban("IT60X0542811101000000654321");
+        request.setSourceIban("IT1234567890ABCDEF0001");
+        request.setTargetIban("IT1234567890ABCDEF0002");
         request.setAmount(BigDecimal.valueOf(100));
         return request;
     }
@@ -79,7 +89,7 @@ class TransactionControllerTest {
                         .with(jwt().jwt(j -> j.subject("customer-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(movimentoRequest())))
+                        .content(objectMapper.writeValueAsString(depositoRequest())))
                 .andExpect(status().isOk());
     }
 
@@ -89,7 +99,7 @@ class TransactionControllerTest {
                         .with(jwt().jwt(j -> j.subject("admin-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(movimentoRequest())))
+                        .content(objectMapper.writeValueAsString(depositoRequest())))
                 .andExpect(status().isForbidden());
     }
 
@@ -97,7 +107,7 @@ class TransactionControllerTest {
     void versamento_senzaAutenticazione_e401() throws Exception {
         mockMvc.perform(post("/api/transactions/versamento")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(movimentoRequest())))
+                        .content(objectMapper.writeValueAsString(depositoRequest())))
                 .andExpect(status().isUnauthorized());
     }
 

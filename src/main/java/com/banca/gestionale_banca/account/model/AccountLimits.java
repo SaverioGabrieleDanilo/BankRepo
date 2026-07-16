@@ -1,6 +1,6 @@
 package com.banca.gestionale_banca.account.model;
 
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -35,7 +35,7 @@ public class AccountLimits {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private Utente user;
+    private User user;
 
     @Column(name = "daily_withdrawal_limit", nullable = false, precision = 19, scale = 4)
     private BigDecimal dailyWithdrawalLimit;

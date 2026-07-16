@@ -15,7 +15,7 @@ import java.time.LocalDate;
 
 // Automatizza il passo "Bootstrap del primo utente ADMIN" del README (altrimenti
 // manuale: creazione utente su Keycloak + INSERT a mano coerente su 'users').
-// Riusa UserServiceImpl.registraUtenteConRuolo cosi' la creazione (Keycloak + DB,
+// Riusa UserServiceImpl.registerUserWithRole cosi' la creazione (Keycloak + DB,
 // con cleanup dell'utente Keycloak orfano in caso di fallimento) resta un solo
 // percorso di codice, non duplicato qui.
 @Slf4j
@@ -51,7 +51,7 @@ public class DefaultAdminBootstrapper implements CommandLineRunner {
         request.setDateOfBirth(LocalDate.of(1990, 1, 1));
 
         try {
-            userService.registraUtenteConRuolo(request, Ruoli.ADMIN);
+            userService.registerUserWithRole(request, Ruoli.ADMIN);
             log.warn("Creato utente ADMIN di bootstrap (username='{}', password='{}') - SOLO SVILUPPO LOCALE. " +
                     "Disabilita 'app.bootstrap.default-admin.enabled' prima di qualunque ambiente condiviso.",
                     USERNAME, PASSWORD);

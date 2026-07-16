@@ -13,5 +13,7 @@ public class AccountLimitsResponse {
     private BigDecimal dailyWithdrawalLimit;
     private BigDecimal singleTransactionLimit;
     private BigDecimal monthlyTransferLimit;
+    private BigDecimal dailyWithdrawalUsed;
+    private BigDecimal monthlyTransferUsed;
     private LocalDateTime updatedAt;
 }

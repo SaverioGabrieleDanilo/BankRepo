@@ -11,7 +11,7 @@ import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.user.model.RegistrationStatus;
 import com.banca.gestionale_banca.user.model.Role;
 import com.banca.gestionale_banca.user.model.UserStatus;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.repository.RegistrationStatusRepository;
 import com.banca.gestionale_banca.user.repository.RoleRepository;
 import com.banca.gestionale_banca.user.repository.UserRepository;
@@ -56,16 +56,16 @@ class UserServiceImpl implements UserService {
     // niente @Transactional qui, per non tenere aperta una connessione DB per
     // tutta la durata della chiamata esterna (vedi audit UserServiceImpl).
     @Override
-    public Utente registraUtente(RegisterRequest request) {
+    public User registerUser(RegisterRequest request) {
         return creaUtente(request, Ruoli.CUSTOMER);
     }
 
     @Override
-    public Utente registraUtenteConRuolo(RegisterRequest request, String role) {
+    public User registerUserWithRole(RegisterRequest request, String role) {
         return creaUtente(request, role);
     }
 
-    private Utente creaUtente(RegisterRequest request, String roleName) {
+    private User creaUtente(RegisterRequest request, String roleName) {
         if (userrepo.existsByUsername(request.getUsername())) {
             throw new ConflictException("Username già in uso");
         }
@@ -137,7 +137,7 @@ class UserServiceImpl implements UserService {
             RegistrationStatus pending = registrationStatusRepository.findByName(StatiRegistrazione.PENDING)
                     .orElseThrow(() -> new ResourceNotFoundException("Stato PENDING non trovato"));
 
-            Utente u = new Utente();
+            User u = new User();
             u.setKeycloakId(keycloakId);
             u.setUsername(request.getUsername());
             u.setEmail(request.getEmail());
@@ -157,7 +157,7 @@ class UserServiceImpl implements UserService {
             if (keycloakId != null) {
                 try {
                     usersResource.get(keycloakId).remove();
-                    log.warn("Utente Keycloak {} rimosso dopo fallimento della registrazione locale", keycloakId);
+                    log.warn("User Keycloak {} rimosso dopo fallimento della registrazione locale", keycloakId);
                 } catch (Exception cleanupEx) {
                     log.error("Impossibile ripulire l'utente Keycloak orfano {}: {}", keycloakId, cleanupEx.getMessage());
                 }
@@ -180,14 +180,17 @@ class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<Utente> findById(Long id) { return userrepo.findByIdWithDetails(id); }
+    public Optional<User> findById(Long id) { return userrepo.findByIdWithDetails(id); }
 
     @Override
-    public Optional<Utente> findByKeycloakId(String keycloakId) { return userrepo.findByKeycloakId(keycloakId); }
+    public Optional<User> findByKeycloakId(String keycloakId) { return userrepo.findByKeycloakId(keycloakId); }
 
     @Override
-    public Utente modificaUtente(Long id, UpdateUserRequest request) {
-        Utente u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+    public Optional<User> findByKeycloakIdWithDetails(String keycloakId) { return userrepo.findByKeycloakIdWithDetails(keycloakId); }
+
+    @Override
+    public User updateUser(Long id, UpdateUserRequest request) {
+        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
 
         // Risolve il ruolo PRIMA di qualunque chiamata Keycloak: se il ruolo richiesto
         // non esiste, deve fallire qui senza aver già sincronizzato l'email, altrimenti
@@ -204,6 +207,15 @@ class UserServiceImpl implements UserService {
             u.setEmail(request.getEmail());
             syncEmailToKeycloak(keycloakUser, request.getEmail());
         }
+        if (request.getFirstName() != null || request.getLastName() != null) {
+            if (request.getFirstName() != null) {
+                u.setFirstName(request.getFirstName());
+            }
+            if (request.getLastName() != null) {
+                u.setLastName(request.getLastName());
+            }
+            syncNameToKeycloak(keycloakUser, request.getFirstName(), request.getLastName());
+        }
         if (newRole != null) {
             u.setRole(newRole);
             syncRoleToKeycloak(keycloakUser, u.getKeycloakId(), newRole.getName());
@@ -213,17 +225,17 @@ class UserServiceImpl implements UserService {
         // rimpiazza le associazioni lazy con nuovi proxy legati a una sessione
         // già chiusa (niente @Transactional qui, vedi nota su creaUtente sopra:
         // evitiamo di tenere una connessione DB aperta durante l'I/O verso Keycloak).
-        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
     }
 
     @Override
-    public void disattivaUtente(Long id) {
-        cambiaStatoUtente(id, StatiUtente.CHIUSO);
+    public void deactivateUser(Long id) {
+        changeUserStatus(id, StatiUtente.CHIUSO);
     }
 
     @Override
-    public Utente cambiaStatoUtente(Long id, String statusName) {
-        Utente u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+    public User changeUserStatus(Long id, String statusName) {
+        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
         UserStatus newStatus = userStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato '" + statusName + "' non valido"));
 
@@ -239,26 +251,26 @@ class UserServiceImpl implements UserService {
 
         u.setStatus(newStatus);
         userrepo.save(u);
-        // Vedi nota in modificaUtente: ri-fetch con JOIN FETCH dopo il save
+        // Vedi nota in updateUser: ri-fetch con JOIN FETCH dopo il save
         // per evitare LazyInitializationException sull'entity restituita.
-        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
     }
 
     @Override
-    public Utente cambiaStatoRegistrazione(Long id, String statusName) {
-        Utente u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+    public User changeRegistrationStatus(Long id, String statusName) {
+        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
         RegistrationStatus newStatus = registrationStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato di registrazione '" + statusName + "' non valido"));
 
         u.setRegistrationStatus(newStatus);
         userrepo.save(u);
-        // Vedi nota in modificaUtente: ri-fetch con JOIN FETCH dopo il save
+        // Vedi nota in updateUser: ri-fetch con JOIN FETCH dopo il save
         // per evitare LazyInitializationException sull'entity restituita.
-        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
     }
 
     @Override
-    public Page<Utente> getUtentiPaginati(Pageable pageable) {
+    public Page<User> getPaginatedUsers(Pageable pageable) {
         return userrepo.findAllWithDetails(pageable);
     }
 
@@ -268,7 +280,7 @@ class UserServiceImpl implements UserService {
     // incompleto, facendo fallire DefaultAdminBootstrapper piu' avanti.
     @Override
     @Transactional
-    public void seedDatiBase() {
+    public void seedBaseData() {
         creaSeMancante(roleRepository::findByName, roleRepository::save, Role::new,
                 Ruoli.ADMIN, Ruoli.EMPLOYEE, Ruoli.CUSTOMER);
 
@@ -302,6 +314,22 @@ class UserServiceImpl implements UserService {
         } catch (Exception e) {
             log.error("Impossibile aggiornare l'email su Keycloak: {}", e.getMessage());
             throw new ExternalServiceException("Impossibile aggiornare l'email su Keycloak", e);
+        }
+    }
+
+    private void syncNameToKeycloak(UserResource keycloakUser, String firstName, String lastName) {
+        try {
+            UserRepresentation rep = keycloakUser.toRepresentation();
+            if (firstName != null) {
+                rep.setFirstName(firstName);
+            }
+            if (lastName != null) {
+                rep.setLastName(lastName);
+            }
+            keycloakUser.update(rep);
+        } catch (Exception e) {
+            log.error("Impossibile aggiornare nome/cognome su Keycloak: {}", e.getMessage());
+            throw new ExternalServiceException("Impossibile aggiornare nome/cognome su Keycloak", e);
         }
     }
 

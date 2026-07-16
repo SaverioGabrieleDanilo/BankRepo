@@ -1,8 +1,11 @@
 package com.banca.gestionale_banca.transaction.service;
 
+import com.banca.gestionale_banca.account.repository.BankAccountRepository;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
+import com.banca.gestionale_banca.transaction.dto.DepositRequest;
 import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
+import com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
@@ -11,14 +14,20 @@ import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.transaction.constants.StatiTransazione;
 import com.banca.gestionale_banca.transaction.constants.TipiTransazione;
+import com.banca.gestionale_banca.transaction.model.DepositType;
 import com.banca.gestionale_banca.transaction.model.Transaction;
 import com.banca.gestionale_banca.transaction.model.TransactionStatus;
 import com.banca.gestionale_banca.transaction.model.TransactionType;
+import com.banca.gestionale_banca.transaction.repository.DepositTypeRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionStatusRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionTypeRepository;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
+import com.banca.gestionale_banca.user.model.User;
+import com.banca.gestionale_banca.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -35,26 +44,30 @@ class TransactionServiceImpl implements TransactionService {
     private static final BigDecimal FEE_PERCENTAGE = new BigDecimal("0.02");
 
     private final BankAccountService bankAccountService;
+    private final BankAccountRepository bankAccountRepository;
     private final TransactionRepository transactionRepository;
     private final TransactionTypeRepository transactionTypeRepository;
     private final TransactionStatusRepository transactionStatusRepository;
+    private final DepositTypeRepository depositTypeRepository;
     private final AccountLimitsService accountLimitsService;
     private final AuthorizationFacade authorizationFacade;
+    private final UserService userService;
 
     @Override
     @Transactional
-    public TransactionResponse eseguiVersamento(TransactionRequest request, String keycloakId, boolean isEmployee) {
+    public TransactionResponse eseguiVersamento(DepositRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = trovaConto(request.getIban(), "Conto corrente non trovato");
         authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         bankAccountService.assertActive(account, "Il conto corrente non è attivo");
 
         TransactionType type = trovaTipo(TipiTransazione.VERSAMENTO);
         TransactionStatus status = trovaStatoEseguita();
+        DepositType depositType = trovaDepositType(request.getDepositType());
 
         account = bankAccountService.updateBalance(account, account.getBalance().add(request.getAmount()));
 
         Transaction transaction = registraMovimento(account, account, request.getAmount(),
-                request.getDescription(), type, status);
+                request.getDescription(), type, status, depositType, request.getItemsCount());
 
         return toResponse(transaction, account.getIban(), account.getBalance(), null);
     }
@@ -78,7 +91,7 @@ class TransactionServiceImpl implements TransactionService {
         account = bankAccountService.updateBalance(account, account.getBalance().subtract(request.getAmount()));
 
         Transaction transaction = registraMovimento(account, account, request.getAmount(),
-                request.getDescription(), type, status);
+                request.getDescription(), type, status, null, null);
 
         return toResponse(transaction, account.getIban(), account.getBalance(), null);
     }
@@ -113,7 +126,7 @@ class TransactionServiceImpl implements TransactionService {
         targetAccount = bankAccountService.updateBalance(targetAccount, targetAccount.getBalance().add(request.getAmount()));
 
         Transaction transaction = registraMovimento(sourceAccount, targetAccount, request.getAmount(),
-                request.getDescription() + " (Trattenuta: " + fee + "€)", type, status);
+                request.getDescription() + " (Trattenuta: " + fee + "€)", type, status, null, null);
 
         return toResponse(transaction, sourceAccount.getIban(), sourceAccount.getBalance(), fee);
     }
@@ -150,7 +163,7 @@ class TransactionServiceImpl implements TransactionService {
         targetAccount = bankAccountService.updateBalance(targetAccount, targetAccount.getBalance().add(request.getAmount()));
 
         Transaction transaction = registraMovimento(sourceAccount, targetAccount, request.getAmount(),
-                request.getDescription(), type, status);
+                request.getDescription(), type, status, null, null);
 
         return toResponse(transaction, sourceAccount.getIban(), sourceAccount.getBalance(), null);
     }
@@ -162,6 +175,58 @@ class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Transazione non trovata"));
 
         return toResponse(tx, tx.getPayerAccount().getIban(), tx.getPayerAccount().getBalance(), null);
+    }
+
+    @Override
+    public Page<TransactionAdminResponse> getTransazioniPaginate(Pageable pageable) {
+        return transactionRepository.findAllWithDetails(pageable).map(this::toAdminResponse);
+    }
+
+    @Override
+    public Page<TransactionAdminResponse> getTransazioniByConto(Long accountId, String keycloakId, boolean isEmployee, Pageable pageable) {
+        BankAccount account = bankAccountRepository.findByIdWithUser(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
+
+        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare le transazioni di questo conto");
+
+        return transactionRepository.findAllByAccountId(accountId, pageable).map(this::toAdminResponse);
+    }
+
+    @Override
+    public List<TransactionResponse> getUserTransactions(String keycloakId) {
+        User user = userService.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+
+        return transactionRepository.findAllByUserId(user.getId()).stream()
+                .map(tx -> {
+                    boolean isPayer = tx.getPayerUser().getId().equals(user.getId());
+                    String iban = isPayer ? tx.getPayerAccount().getIban() : tx.getPayeeAccount().getIban();
+
+                    BigDecimal fee = null;
+                    if (isPayer && TipiTransazione.BONIFICO.equals(tx.getType().getName())) {
+                        fee = tx.getAmount().multiply(FEE_PERCENTAGE).setScale(2, RoundingMode.HALF_EVEN);
+                    }
+
+                    return toResponse(tx, iban, null, fee);
+                })
+                .toList();
+    }
+
+    private TransactionAdminResponse toAdminResponse(Transaction tx) {
+        return TransactionAdminResponse.builder()
+                .id(tx.getId())
+                .type(tx.getType().getName())
+                .amount(tx.getAmount())
+                .status(tx.getStatus().getName())
+                .description(tx.getDescription())
+                .transactionDate(tx.getTransactionDate())
+                .payerIban(tx.getPayerAccount().getIban())
+                .payerUsername(tx.getPayerUser().getUsername())
+                .payerFullName(tx.getPayerUser().getFirstName() + " " + tx.getPayerUser().getLastName())
+                .payeeIban(tx.getPayeeAccount().getIban())
+                .payeeUsername(tx.getPayeeUser().getUsername())
+                .payeeFullName(tx.getPayeeUser().getFirstName() + " " + tx.getPayeeUser().getLastName())
+                .build();
     }
 
     private BankAccount trovaConto(String iban, String messageIfNotFound) {
@@ -221,13 +286,19 @@ class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Tipo transazione " + name + " non configurato"));
     }
 
+    private DepositType trovaDepositType(String name) {
+        return depositTypeRepository.findByName(name)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo deposito " + name + " non configurato"));
+    }
+
     private TransactionStatus trovaStatoEseguita() {
         return transactionStatusRepository.findByName(StatiTransazione.ESEGUITA)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato transazione ESEGUITA non configurato"));
     }
 
     private Transaction registraMovimento(BankAccount payer, BankAccount payee, BigDecimal amount,
-                                           String description, TransactionType type, TransactionStatus status) {
+                                           String description, TransactionType type, TransactionStatus status,
+                                           DepositType depositType, Integer itemsCount) {
         LocalDateTime now = LocalDateTime.now();
         Transaction transaction = new Transaction();
         transaction.setAmount(amount);
@@ -241,6 +312,8 @@ class TransactionServiceImpl implements TransactionService {
         transaction.setPayeeUser(payee.getUser());
         transaction.setType(type);
         transaction.setStatus(status);
+        transaction.setDepositType(depositType);
+        transaction.setItemsCount(itemsCount);
         return transactionRepository.save(transaction);
     }
 
@@ -254,6 +327,8 @@ class TransactionServiceImpl implements TransactionService {
                 .updatedBalance(updatedBalance)
                 .status(tx.getStatus().getName())
                 .timestamp(tx.getTransactionDate())
+                .depositType(tx.getDepositType() != null ? tx.getDepositType().getName() : null)
+                .itemsCount(tx.getItemsCount())
                 .build();
     }
 }

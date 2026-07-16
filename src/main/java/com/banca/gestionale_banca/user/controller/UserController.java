@@ -19,7 +19,7 @@ import com.banca.gestionale_banca.user.dto.UserResponse;
 import com.banca.gestionale_banca.user.dto.UserStatusRequest;
 import com.banca.gestionale_banca.user.dto.RegistrationStatusRequest;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.service.UserService;
 
 import jakarta.validation.Valid;
@@ -33,24 +33,31 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping("/registra")
-    public ResponseEntity<UserResponse> registraUtente(@Valid @RequestBody RegisterRequest request) {
-        Utente user = userService.registraUtente(request);
+    public ResponseEntity<UserResponse> registerUser(@Valid @RequestBody RegisterRequest request) {
+        User user = userService.registerUser(request);
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
     @PostMapping("/admin/crea")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserResponse> creaUtenteConRuolo(@Valid @RequestBody AdminCreateUserRequest request) {
-        Utente user = userService.registraUtenteConRuolo(request, request.getRole());
+    public ResponseEntity<UserResponse> createUserWithRole(@Valid @RequestBody AdminCreateUserRequest request) {
+        User user = userService.registerUserWithRole(request, request.getRole());
+        return ResponseEntity.ok(UserResponse.from(user));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> getMyProfile(@AuthenticationPrincipal Jwt jwt) {
+        User user = userService.findByKeycloakIdWithDetails(jwt.getSubject())
+                .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UserResponse> getUtenteById(@PathVariable Long id,
+    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id,
                                                         @AuthenticationPrincipal Jwt jwt,
                                                         Authentication authentication) {
-        Utente user = userService.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        User user = userService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
 
         boolean isAdmin = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
@@ -65,23 +72,23 @@ public class UserController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Page<UserResponse>> getUtentiPaginati(
+    public ResponseEntity<Page<UserResponse>> getPaginatedUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(userService.getUtentiPaginati(pageable).map(UserResponse::from));
+        return ResponseEntity.ok(userService.getPaginatedUsers(pageable).map(UserResponse::from));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<UserResponse> modificaUtente(
+    public ResponseEntity<UserResponse> updateUser(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request,
             @AuthenticationPrincipal Jwt jwt,
             Authentication authentication) {
 
-        Utente user = userService.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        User user = userService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
 
         boolean isAdmin = authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
@@ -94,25 +101,25 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato a modificare questo utente");
         }
 
-        return ResponseEntity.ok(UserResponse.from(userService.modificaUtente(id, request)));
+        return ResponseEntity.ok(UserResponse.from(userService.updateUser(id, request)));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<Void> disattivaUtente(@PathVariable Long id) {
-        userService.disattivaUtente(id);
+    public ResponseEntity<Void> deactivateUser(@PathVariable Long id) {
+        userService.deactivateUser(id);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<UserResponse> cambiaStatoUtente(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request) {
-        return ResponseEntity.ok(UserResponse.from(userService.cambiaStatoUtente(id, request.getStatus())));
+    public ResponseEntity<UserResponse> changeUserStatus(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request) {
+        return ResponseEntity.ok(UserResponse.from(userService.changeUserStatus(id, request.getStatus())));
     }
 
     @PatchMapping("/{id}/registration-status")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<UserResponse> cambiaStatoRegistrazione(@PathVariable Long id, @Valid @RequestBody RegistrationStatusRequest request) {
-        return ResponseEntity.ok(UserResponse.from(userService.cambiaStatoRegistrazione(id, request.getRegistrationStatus())));
+    public ResponseEntity<UserResponse> changeRegistrationStatus(@PathVariable Long id, @Valid @RequestBody RegistrationStatusRequest request) {
+        return ResponseEntity.ok(UserResponse.from(userService.changeRegistrationStatus(id, request.getRegistrationStatus())));
     }
 }

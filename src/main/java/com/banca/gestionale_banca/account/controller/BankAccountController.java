@@ -20,14 +20,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 
+import java.util.List;
+
 import com.banca.gestionale_banca.account.dto.AccountLimitsRequest;
 import com.banca.gestionale_banca.account.dto.AccountLimitsResponse;
 import com.banca.gestionale_banca.account.dto.ApproveAccountRequest;
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
+import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
+import com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse;
+import com.banca.gestionale_banca.transaction.service.TransactionService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +43,7 @@ public class BankAccountController {
 
     private final BankAccountService bankAccountService;
     private final AccountLimitsService accountLimitsService;
+    private final TransactionService transactionService;
     private final AuthorizationFacade authorizationFacade;
 
     @PostMapping("/apertura")
@@ -70,6 +76,33 @@ public class BankAccountController {
         return ResponseEntity.ok(bankAccountService.listaConti(pageable));
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<BankAccountResponse> getConto(@PathVariable Long id,
+                                                         @AuthenticationPrincipal Jwt jwt,
+                                                         Authentication authentication) {
+        return ResponseEntity.ok(bankAccountService.getContoById(id, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+    }
+
+    @GetMapping("/user-accounts")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<List<BankAccountResponseDTO>> getMyAccounts(@AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(bankAccountService.getUserBankAccounts(jwt.getSubject()));
+    }
+
+    @GetMapping("/{id}/transazioni")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<Page<TransactionAdminResponse>> getTransazioniConto(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(transactionService.getTransazioniByConto(id, jwt.getSubject(), authorizationFacade.isEmployee(authentication), pageable));
+    }
+
     @GetMapping("/{id}/limits")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<AccountLimitsResponse> getLimiti(@PathVariable Long id,
@@ -79,8 +112,12 @@ public class BankAccountController {
     }
 
     @PutMapping("/{id}/limits")
-    @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
-    public ResponseEntity<AccountLimitsResponse> impostaLimiti(@PathVariable Long id, @Valid @RequestBody AccountLimitsRequest request) {
-        return ResponseEntity.ok(accountLimitsService.impostaLimiti(id, request));
+    @PreAuthorize("hasAnyRole('CUSTOMER','EMPLOYEE','ADMIN')")
+    public ResponseEntity<AccountLimitsResponse> impostaLimiti(@PathVariable Long id,
+                                                                @Valid @RequestBody AccountLimitsRequest request,
+                                                                @AuthenticationPrincipal Jwt jwt,
+                                                                Authentication authentication) {
+        boolean isStaff = authorizationFacade.isEmployee(authentication) || authorizationFacade.isAdmin(authentication);
+        return ResponseEntity.ok(accountLimitsService.impostaLimiti(id, request, jwt.getSubject(), isStaff));
     }
 }

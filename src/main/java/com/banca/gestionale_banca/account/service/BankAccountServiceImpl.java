@@ -2,6 +2,7 @@ package com.banca.gestionale_banca.account.service;
 
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
+import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.account.constants.StatiConto;
@@ -9,7 +10,7 @@ import com.banca.gestionale_banca.account.model.AccountStatus;
 import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.account.repository.AccountStatusRepository;
 import com.banca.gestionale_banca.account.repository.BankAccountRepository;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.user.service.UserService;
 
@@ -21,7 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
@@ -35,8 +38,8 @@ class BankAccountServiceImpl implements BankAccountService {
     @Override
     @Transactional
     public BankAccountResponse apriConto(String keycloakId) {
-        Utente user = userService.findByKeycloakId(keycloakId)
-                .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        User user = userService.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
 
         AccountStatus status = accountStatusRepository.findByName(StatiConto.IN_ATTESA)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato conto IN_ATTESA non configurato"));
@@ -99,6 +102,34 @@ class BankAccountServiceImpl implements BankAccountService {
     }
 
     @Override
+    public BankAccountResponse getContoById(Long accountId, String keycloakId, boolean isEmployee) {
+        BankAccount account = bankAccountRepository.findByIdWithUser(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
+
+        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
+
+        return toResponse(account);
+    }
+
+    @Override
+    public List<BankAccountResponseDTO> getUserBankAccounts(String keycloakId) {
+        User user = userService.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+
+        return bankAccountRepository.findByUserId(user.getId()).stream()
+                .map(acc -> new BankAccountResponseDTO(
+                        acc.getId(),
+                        acc.getIban(),
+                        acc.getBalance(),
+                        acc.getContableBalance(),
+                        acc.getUser().getId(),
+                        acc.getStatus() != null ? acc.getStatus().getName() : null,
+                        acc.getOpeningDate(),
+                        acc.getCreatedAt()))
+                .toList();
+    }
+
+    @Override
     public Page<BankAccountAdminResponse> listaConti(Pageable pageable) {
         return bankAccountRepository.findAllWithUser(pageable)
                 .map(account -> BankAccountAdminResponse.builder()
@@ -109,11 +140,17 @@ class BankAccountServiceImpl implements BankAccountService {
                         .ownerId(account.getUser().getId())
                         .ownerUsername(account.getUser().getUsername())
                         .ownerFullName(account.getUser().getFirstName() + " " + account.getUser().getLastName())
+                        .openingDate(account.getOpeningDate())
                         .build());
     }
 
     private String generaIban() {
-        return "IT" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
+        // Deve rispettare esattamente @Iban: ^IT[0-9A-F]{20}$ (2 cifre di controllo +
+        // 18 esadecimali). UUID.randomUUID() genera esadecimale minuscolo, maiuscolato
+        // per restare nel range [0-9A-F] richiesto dal pattern.
+        int checkDigits = ThreadLocalRandom.current().nextInt(100);
+        String randomPart = UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase();
+        return String.format("IT%02d%s", checkDigits, randomPart);
     }
 
     private BankAccountResponse toResponse(BankAccount account) {
@@ -121,6 +158,7 @@ class BankAccountServiceImpl implements BankAccountService {
                 .id(account.getId())
                 .iban(account.getIban())
                 .balance(account.getBalance())
+                .contableBalance(account.getContableBalance())
                 .status(account.getStatus().getName())
                 .openingDate(account.getOpeningDate())
                 .build();

@@ -9,6 +9,7 @@ import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.shared.security.SecurityConfig;
+import com.banca.gestionale_banca.transaction.service.TransactionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +53,9 @@ class BankAccountControllerTest {
 
     @MockitoBean
     private AccountLimitsService accountLimitsService;
+
+    @MockitoBean
+    private TransactionService transactionService;
 
     private BankAccountResponse contoResponse() {
         return BankAccountResponse.builder().id(1L).iban("IT60X0542811101000000123456").build();
@@ -172,7 +176,7 @@ class BankAccountControllerTest {
         request.setSingleTransactionLimit(java.math.BigDecimal.valueOf(500));
         request.setMonthlyTransferLimit(java.math.BigDecimal.valueOf(5000));
 
-        when(accountLimitsService.impostaLimiti(eq(1L), any()))
+        when(accountLimitsService.impostaLimiti(eq(1L), any(), any(), anyBoolean()))
                 .thenReturn(AccountLimitsResponse.builder().accountId(1L).build());
 
         mockMvc.perform(put("/api/conti/1/limits")
@@ -184,17 +188,38 @@ class BankAccountControllerTest {
     }
 
     @Test
-    void impostaLimiti_conRuoloCustomer_e403() throws Exception {
+    void impostaLimiti_conRuoloAdmin_e200() throws Exception {
         AccountLimitsRequest request = new AccountLimitsRequest();
         request.setDailyWithdrawalLimit(java.math.BigDecimal.valueOf(1000));
         request.setSingleTransactionLimit(java.math.BigDecimal.valueOf(500));
         request.setMonthlyTransferLimit(java.math.BigDecimal.valueOf(5000));
+
+        when(accountLimitsService.impostaLimiti(eq(1L), any(), any(), anyBoolean()))
+                .thenReturn(AccountLimitsResponse.builder().accountId(1L).build());
+
+        mockMvc.perform(put("/api/conti/1/limits")
+                        .with(jwt().jwt(j -> j.subject("admin-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void impostaLimiti_conRuoloCustomer_proprietario_e200() throws Exception {
+        AccountLimitsRequest request = new AccountLimitsRequest();
+        request.setDailyWithdrawalLimit(java.math.BigDecimal.valueOf(1000));
+        request.setSingleTransactionLimit(java.math.BigDecimal.valueOf(500));
+        request.setMonthlyTransferLimit(java.math.BigDecimal.valueOf(5000));
+
+        when(accountLimitsService.impostaLimiti(eq(1L), any(), any(), anyBoolean()))
+                .thenReturn(AccountLimitsResponse.builder().accountId(1L).build());
 
         mockMvc.perform(put("/api/conti/1/limits")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 }

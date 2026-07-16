@@ -5,6 +5,7 @@ import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -16,6 +17,8 @@ import java.util.Optional;
 
 @Repository
 public interface BankAccountRepository extends JpaRepository<BankAccount, Long> {
+
+    @EntityGraph(attributePaths = {"status"})
     List<BankAccount> findByUserId(Long userId);
     Optional<BankAccount> findByIban(String iban);
 
@@ -27,4 +30,7 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, Long> 
     @Query(value = "SELECT b FROM BankAccount b JOIN FETCH b.user JOIN FETCH b.status",
            countQuery = "SELECT COUNT(b) FROM BankAccount b")
     Page<BankAccount> findAllWithUser(Pageable pageable);
+
+    @Query("SELECT b FROM BankAccount b JOIN FETCH b.user JOIN FETCH b.status WHERE b.id = :id")
+    Optional<BankAccount> findByIdWithUser(@Param("id") Long id);
 }
