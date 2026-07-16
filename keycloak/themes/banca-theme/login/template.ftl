@@ -1,11 +1,7 @@
 <#--
-  Basato su theme/base/login/template.ftl (Keycloak 24.0.1), estratto direttamente
-  dal jar in uso (org.keycloak.keycloak-themes-24.0.1.jar) per non reimplementare
-  a memoria la logica FreeMarker. Tutta la logica originale (switcher lingua, alert
-  messaggi, flusso "show-username" durante login multi-step, <#nested> per
-  form/socialProviders/info) e' invariata: sono stati aggiunti solo nuovi elementi
-  statici attorno (header con brand, trust-indicator), rimossa la vecchia
-  visualizzazione del solo nome realm (kc-header-wrapper) in favore del brand fisso.
+  Basato su theme/base/login/template.ftl (Keycloak 24.0.1).
+  Struttura aggiornata per corrispondere esattamente al design e alle classi del FE Angular,
+  preservando intatta tutta la logica dinamica di Keycloak.
 -->
 <#macro registrationLayout bodyClass="" displayInfo=false displayMessage=true displayRequiredFields=false>
 <!DOCTYPE html>
@@ -24,9 +20,7 @@
     <title>${msg("loginTitle",(realm.displayName!''))}</title>
     <link rel="icon" href="${url.resourcesPath}/img/favicon.ico" />
 
-    <#-- Font icone usato dal design Angular (material-symbols-outlined), stessa libreria
-         che nel frontend arriva da 'material-symbols/outlined.css' via npm. Qui e' servito
-         da Keycloak (nessuna build), quindi via Google Fonts CDN. -->
+    <#-- Font icone per simboli Material -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
 
     <#if properties.stylesCommon?has_content>
@@ -66,64 +60,94 @@
 <body class="${properties.kcBodyClass!}">
 <div class="${properties.kcLoginClass!}">
 
-    <#-- Header con brand, sostituisce il vecchio kc-header-wrapper che mostrava solo
-         il nome del realm: qui il brand e' fisso (tema "banca-theme"), coerente con
-         il resto dell'app. onclick="history.back()" al posto del router Angular. -->
-    <header class="login-header">
-        <div class="login-header__back" onclick="history.back()" role="button" tabindex="0"
-             aria-label="${msg("backButton")!'Back'}">
-            <span class="material-symbols-outlined login-header__back-icon">arrow_back</span>
+    <#-- Language Selector posizionato in alto a destra sopra il banner -->
+    <#if realm.internationalizationEnabled && locale.supported?size gt 1>
+        <div class="${properties.kcLocaleMainClass!}" id="kc-locale">
+            <div id="kc-locale-wrapper" class="${properties.kcLocaleWrapperClass!}">
+                <div id="kc-locale-dropdown" class="menu-button-links ${properties.kcLocaleDropDownClass!}">
+                    <button tabindex="1" id="kc-current-locale-link" aria-label="${msg("languages")}" aria-haspopup="true" aria-expanded="false" aria-controls="language-switch1">${locale.current}</button>
+                    <ul role="menu" tabindex="-1" aria-labelledby="kc-current-locale-link" aria-activedescendant="" id="language-switch1" class="${properties.kcLocaleListClass!}">
+                        <#assign i = 1>
+                        <#list locale.supported as l>
+                            <li class="${properties.kcLocaleListItemClass!}" role="none">
+                                <a role="menuitem" id="language-${i}" class="${properties.kcLocaleItemClass!}" href="${l.url}">${l.label}</a>
+                            </li>
+                            <#assign i++>
+                        </#list>
+                    </ul>
+                </div>
+            </div>
         </div>
+    </#if>
+
+    <#-- Header con Brand coerente col design Angular -->
+    <header class="login-header">
+        <#-- Pulsante Indietro Dinamico -->
+        <a class="login-header__back" id="login-back-btn" href="http://localhost:4200/landing" role="button" aria-label="${msg("backButton")!'Back'}">
+            <span class="material-symbols-outlined login-header__back-icon">arrow_back</span>
+        </a>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const params = new URLSearchParams(window.location.search);
+                const redirectUri = params.get('redirect_uri');
+                if (redirectUri) {
+                    try {
+                        const url = new URL(redirectUri);
+                        // Estrae l'origine (es. http://localhost:4200 o https://tuodominio.com) e ci aggiunge /landing
+                        document.getElementById('login-back-btn').href = url.origin + '/landing';
+                    } catch (e) {
+                        console.warn("Impossibile parsare il redirect_uri, uso il fallback di sviluppo.");
+                    }
+                }
+            });
+        </script>
         <div class="login-header__content">
             <div class="login-header__brand">
                 <span class="material-symbols-outlined login-header__logo">account_balance</span>
-                <h1 class="login-header__title">${msg("themeBrandTitle")}</h1>
+                <h1 class="login-header__title">${msg("themeBrandTitle")!'Nexus Bank'}</h1>
             </div>
-            <p class="login-header__subtitle">${msg("themeLoginSubtitle")}</p>
+            <p class="login-header__subtitle">${msg("themeLoginSubtitle")!'Institutional security for your personal digital economy.'}</p>
         </div>
     </header>
 
+    <#-- Main Content Container -->
     <main class="login-main">
-    <div class="${properties.kcFormCardClass!}">
-        <header class="${properties.kcFormHeaderClass!}">
-            <#if realm.internationalizationEnabled  && locale.supported?size gt 1>
-                <div class="${properties.kcLocaleMainClass!}" id="kc-locale">
-                    <div id="kc-locale-wrapper" class="${properties.kcLocaleWrapperClass!}">
-                        <div id="kc-locale-dropdown" class="menu-button-links ${properties.kcLocaleDropDownClass!}">
-                            <button tabindex="1" id="kc-current-locale-link" aria-label="${msg("languages")}" aria-haspopup="true" aria-expanded="false" aria-controls="language-switch1">${locale.current}</button>
-                            <ul role="menu" tabindex="-1" aria-labelledby="kc-current-locale-link" aria-activedescendant="" id="language-switch1" class="${properties.kcLocaleListClass!}">
-                                <#assign i = 1>
-                                <#list locale.supported as l>
-                                    <li class="${properties.kcLocaleListItemClass!}" role="none">
-                                        <a role="menuitem" id="language-${i}" class="${properties.kcLocaleItemClass!}" href="${l.url}">${l.label}</a>
-                                    </li>
-                                    <#assign i++>
-                                </#list>
-                            </ul>
+        <div class="${properties.kcFormCardClass!} glass-panel">
+            
+            <header class="${properties.kcFormHeaderClass!}">
+                <#if !(auth?has_content && auth.showUsername() && !auth.showResetCredentials())>
+                    <#if displayRequiredFields>
+                        <div class="${properties.kcContentWrapperClass!}">
+                            <div class="${properties.kcLabelWrapperClass!} subtitle">
+                                <span class="subtitle"><span class="required">*</span> ${msg("requiredFields")}</span>
+                            </div>
+                            <div class="col-md-10">
+                                <h2 id="kc-page-title" class="login-card__title"><#nested "header"></h2>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            </#if>
-        <#if !(auth?has_content && auth.showUsername() && !auth.showResetCredentials())>
-            <#if displayRequiredFields>
-                <div class="${properties.kcContentWrapperClass!}">
-                    <div class="${properties.kcLabelWrapperClass!} subtitle">
-                        <span class="subtitle"><span class="required">*</span> ${msg("requiredFields")}</span>
-                    </div>
-                    <div class="col-md-10">
-                        <h1 id="kc-page-title"><#nested "header"></h1>
-                    </div>
-                </div>
-            <#else>
-                <h1 id="kc-page-title"><#nested "header"></h1>
-            </#if>
-        <#else>
-            <#if displayRequiredFields>
-                <div class="${properties.kcContentWrapperClass!}">
-                    <div class="${properties.kcLabelWrapperClass!} subtitle">
-                        <span class="subtitle"><span class="required">*</span> ${msg("requiredFields")}</span>
-                    </div>
-                    <div class="col-md-10">
+                    <#else>
+                        <h2 id="kc-page-title" class="login-card__title"><#nested "header"></h2>
+                    </#if>
+                <#else>
+                    <#if displayRequiredFields>
+                        <div class="${properties.kcContentWrapperClass!}">
+                            <div class="${properties.kcLabelWrapperClass!} subtitle">
+                                <span class="subtitle"><span class="required">*</span> ${msg("requiredFields")}</span>
+                            </div>
+                            <div class="col-md-10">
+                                <#nested "show-username">
+                                <div id="kc-username" class="${properties.kcFormGroupClass!}">
+                                    <label id="kc-attempted-username">${auth.attemptedUsername}</label>
+                                    <a id="reset-login" href="${url.loginRestartFlowUrl}" aria-label="${msg("restartLoginTooltip")}">
+                                        <div class="kc-login-tooltip">
+                                            <i class="${properties.kcResetFlowIcon!}"></i>
+                                            <span class="kc-tooltip-text">${msg("restartLoginTooltip")}</span>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    <#else>
                         <#nested "show-username">
                         <div id="kc-username" class="${properties.kcFormGroupClass!}">
                             <label id="kc-attempted-username">${auth.attemptedUsername}</label>
@@ -134,78 +158,58 @@
                                 </div>
                             </a>
                         </div>
-                    </div>
-                </div>
-            <#else>
-                <#nested "show-username">
-                <div id="kc-username" class="${properties.kcFormGroupClass!}">
-                    <label id="kc-attempted-username">${auth.attemptedUsername}</label>
-                    <a id="reset-login" href="${url.loginRestartFlowUrl}" aria-label="${msg("restartLoginTooltip")}">
-                        <div class="kc-login-tooltip">
-                            <i class="${properties.kcResetFlowIcon!}"></i>
-                            <span class="kc-tooltip-text">${msg("restartLoginTooltip")}</span>
+                    </#if>
+                </#if>
+            </header>
+
+            <div id="kc-content">
+                <div id="kc-content-wrapper">
+
+                    <#-- Alert e feedback dinamici Keycloak rimpiazzati con lo stile dell'app -->
+                    <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
+                        <div class="login-alert alert-${message.type}">
+                            <span class="material-symbols-outlined login-alert__icon">
+                                <#if message.type = 'success'>check_circle<#elseif message.type = 'warning'>warning<#elseif message.type = 'error'>error<#else>info</#if>
+                            </span>
+                            <span class="login-alert__title">${kcSanitize(message.summary)?no_esc}</span>
                         </div>
-                    </a>
+                    </#if>
+
+                    <#nested "form">
+
+                    <#if auth?has_content && auth.showTryAnotherWayLink()>
+                        <form id="kc-select-try-another-way-form" action="${url.loginAction}" method="post">
+                            <div class="${properties.kcFormGroupClass!}">
+                                <input type="hidden" name="tryAnotherWay" value="on"/>
+                                <a href="#" id="try-another-way"
+                                   onclick="document.forms['kc-select-try-another-way-form'].submit();return false;">${msg("doTryAnotherWay")}</a>
+                            </div>
+                        </form>
+                    </#if>
+
+                    <#nested "socialProviders">
+
+                    <#if displayInfo>
+                        <div id="kc-info" class="login-registration">
+                            <div id="kc-info-wrapper">
+                                <#nested "info">
+                            </div>
+                        </div>
+                    </#if>
                 </div>
-            </#if>
-        </#if>
-      </header>
-      <div id="kc-content">
-        <div id="kc-content-wrapper">
+            </div>
 
-          <#-- App-initiated actions should not see warning messages about the need to complete the action -->
-          <#-- during login.                                                                               -->
-          <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
-              <div class="alert-${message.type} ${properties.kcAlertClass!} pf-m-<#if message.type = 'error'>danger<#else>${message.type}</#if>">
-                  <div class="pf-c-alert__icon">
-                      <#if message.type = 'success'><span class="${properties.kcFeedbackSuccessIcon!}"></span></#if>
-                      <#if message.type = 'warning'><span class="${properties.kcFeedbackWarningIcon!}"></span></#if>
-                      <#if message.type = 'error'><span class="${properties.kcFeedbackErrorIcon!}"></span></#if>
-                      <#if message.type = 'info'><span class="${properties.kcFeedbackInfoIcon!}"></span></#if>
-                  </div>
-                      <span class="${properties.kcAlertTitleClass!}">${kcSanitize(message.summary)?no_esc}</span>
-              </div>
-          </#if>
-
-          <#nested "form">
-
-          <#if auth?has_content && auth.showTryAnotherWayLink()>
-              <form id="kc-select-try-another-way-form" action="${url.loginAction}" method="post">
-                  <div class="${properties.kcFormGroupClass!}">
-                      <input type="hidden" name="tryAnotherWay" value="on"/>
-                      <a href="#" id="try-another-way"
-                         onclick="document.forms['kc-select-try-another-way-form'].submit();return false;">${msg("doTryAnotherWay")}</a>
-                  </div>
-              </form>
-          </#if>
-
-          <#nested "socialProviders">
-
-          <#if displayInfo>
-              <div id="kc-info" class="${properties.kcSignUpClass!}">
-                  <div id="kc-info-wrapper" class="${properties.kcInfoAreaWrapperClass!}">
-                      <#nested "info">
-                  </div>
-              </div>
-          </#if>
         </div>
-      </div>
 
-    </div>
-
-    <#-- Trust indicator statico, coerente col design Angular. Il "promo banner" con
-         l'immagine della carta (hotlink a googleusercontent.com nel design originale)
-         e' stato omesso qui: e' contenuto marketing, non essenziale a una pagina di
-         autenticazione, e non va linkato a un URL esterno non nostro. Va aggiunto qui
-         sotto con un asset self-hosted in resources/img/ se il team lo vuole comunque. -->
-    <div class="trust-indicator">
-        <div class="trust-indicator__secure">
-            <span class="material-symbols-outlined">verified_user</span>
-            <span class="trust-indicator__secure-text">${msg("themeTrustSecureText")}</span>
+        <#-- Trust Indicator fedele al FE Angular -->
+        <div class="trust-indicator">
+            <div class="trust-indicator__secure">
+                <span class="material-symbols-outlined">verified_user</span>
+                <span class="trust-indicator__secure-text">${msg("themeTrustSecureText")!'End-to-End Encrypted'}</span>
+            </div>
+            <div class="trust-indicator__divider"></div>
+            <p class="trust-indicator__board">${msg("themeTrustBoardText")!'Member of the Global Financial Stability Board'}</p>
         </div>
-        <div class="trust-indicator__divider"></div>
-        <p class="trust-indicator__board">${msg("themeTrustBoardText")}</p>
-    </div>
     </main>
 
 </div>
