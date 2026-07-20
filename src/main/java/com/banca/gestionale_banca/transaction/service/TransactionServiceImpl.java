@@ -26,6 +26,8 @@ import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -41,8 +43,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 class TransactionServiceImpl implements TransactionService {
 
-    private static final BigDecimal FEE_PERCENTAGE = new BigDecimal("0.02");
-
+    @Value("${app.transaction.fee-percentage}")
+    private BigDecimal feePercentage;
     private final BankAccountService bankAccountService;
     private final BankAccountRepository bankAccountRepository;
     private final TransactionRepository transactionRepository;
@@ -110,7 +112,7 @@ class TransactionServiceImpl implements TransactionService {
         bankAccountService.assertActive(sourceAccount, "Il conto di origine non è attivo");
         bankAccountService.assertActive(targetAccount, "Il conto di destinazione non è attivo");
 
-        BigDecimal fee = request.getAmount().multiply(FEE_PERCENTAGE).setScale(2, RoundingMode.HALF_EVEN);
+        BigDecimal fee = request.getAmount().multiply(feePercentage).setScale(2, RoundingMode.HALF_EVEN);
         BigDecimal totalDebit = request.getAmount().add(fee);
 
         if (sourceAccount.getBalance().compareTo(totalDebit) < 0) {
@@ -169,7 +171,7 @@ class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public TransactionResponse getTransazioneById(Long id) {
         Transaction tx = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transazione non trovata"));
@@ -204,7 +206,29 @@ class TransactionServiceImpl implements TransactionService {
 
                     BigDecimal fee = null;
                     if (isPayer && TipiTransazione.BONIFICO.equals(tx.getType().getName())) {
-                        fee = tx.getAmount().multiply(FEE_PERCENTAGE).setScale(2, RoundingMode.HALF_EVEN);
+                        fee = tx.getAmount().multiply(feePercentage).setScale(2, RoundingMode.HALF_EVEN);
+                    }
+
+                    return toResponse(tx, iban, null, fee);
+                })
+                .toList();
+    }
+
+    @Override
+    public List<TransactionResponse> getTransazioniByIban(String iban, String keycloakId, boolean isEmployee) {
+        BankAccount account = bankAccountRepository.findByIbanWithUser(iban)
+                .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
+
+        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee,
+                "Non autorizzato a consultare le transazioni di questo conto");
+
+        return transactionRepository.findAllByIban(iban).stream()
+                .map(tx -> {
+                    boolean isPayer = tx.getPayerAccount().getIban().equals(iban);
+
+                    BigDecimal fee = null;
+                    if (isPayer && TipiTransazione.BONIFICO.equals(tx.getType().getName())) {
+                        fee = tx.getAmount().multiply(feePercentage).setScale(2, RoundingMode.HALF_EVEN);
                     }
 
                     return toResponse(tx, iban, null, fee);

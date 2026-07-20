@@ -2,6 +2,7 @@ package com.banca.gestionale_banca.user.service;
 
 import com.banca.gestionale_banca.user.dto.RegisterRequest;
 import com.banca.gestionale_banca.user.dto.UpdateUserRequest;
+import com.banca.gestionale_banca.user.dto.UserStatsResponse;
 import com.banca.gestionale_banca.user.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,7 +18,10 @@ public interface UserService {
     void deactivateUser(Long id);
     User changeUserStatus(Long id, String statusName);
     User changeRegistrationStatus(Long id, String statusName);
-    Page<User> getPaginatedUsers(Pageable pageable);
+    Page<User> getPaginatedUsers(String status, Pageable pageable);
+
+    /** Conteggi aggregati per la dashboard admin (KPI), calcolati sull'intera tabella. */
+    UserStatsResponse getStats();
 
     /**
      * API interna ad uso del bootstrap applicativo (shared/config): inizializza

@@ -14,6 +14,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByKeycloakId(String keycloakId);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
+    long countByStatus_Name(String statusName);
 
     /**
      * Carica role/status/registrationStatus in join (invece che lazy) per evitare
@@ -26,7 +27,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u JOIN FETCH u.role JOIN FETCH u.status JOIN FETCH u.registrationStatus WHERE u.keycloakId = :keycloakId")
     Optional<User> findByKeycloakIdWithDetails(@Param("keycloakId") String keycloakId);
 
-    @Query(value = "SELECT u FROM User u JOIN FETCH u.role JOIN FETCH u.status JOIN FETCH u.registrationStatus",
-           countQuery = "SELECT COUNT(u) FROM User u")
-    Page<User> findAllWithDetails(Pageable pageable);
+    @Query(value = "SELECT u FROM User u JOIN FETCH u.role JOIN FETCH u.status JOIN FETCH u.registrationStatus " +
+           "WHERE (:status IS NULL OR u.status.name = :status) " +
+           "ORDER BY CASE u.status.name WHEN 'ATTIVO' THEN 0 WHEN 'SOSPESO' THEN 1 WHEN 'CHIUSO' THEN 2 ELSE 3 END, " +
+           "u.firstName, u.lastName",
+           countQuery = "SELECT COUNT(u) FROM User u WHERE (:status IS NULL OR u.status.name = :status)")
+    Page<User> findAllWithDetails(@Param("status") String status, Pageable pageable);
 }

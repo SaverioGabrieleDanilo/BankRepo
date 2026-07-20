@@ -143,6 +143,17 @@ class BankAccountControllerTest {
     }
 
     @Test
+    void listaConti_conRuoloEmployee_e200() throws Exception {
+        Page<BankAccountAdminResponse> page = new PageImpl<>(List.of());
+        when(bankAccountService.listaConti(any())).thenReturn(page);
+
+        mockMvc.perform(get("/api/conti")
+                        .with(jwt().jwt(j -> j.subject("employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void listaConti_conRuoloCustomer_e403() throws Exception {
         mockMvc.perform(get("/api/conti")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
@@ -162,11 +173,25 @@ class BankAccountControllerTest {
     }
 
     @Test
-    void getLimiti_conRuoloAdmin_e403() throws Exception {
+    void getLimiti_conRuoloAdmin_e200() throws Exception {
+        when(accountLimitsService.getLimiti(eq(1L), any(), anyBoolean()))
+                .thenReturn(AccountLimitsResponse.builder().accountId(1L).build());
+
         mockMvc.perform(get("/api/conti/1/limits")
                         .with(jwt().jwt(j -> j.subject("admin-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getLimiti_conRuoloEmployee_e200() throws Exception {
+        when(accountLimitsService.getLimiti(eq(1L), any(), anyBoolean()))
+                .thenReturn(AccountLimitsResponse.builder().accountId(1L).build());
+
+        mockMvc.perform(get("/api/conti/1/limits")
+                        .with(jwt().jwt(j -> j.subject("employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
     }
 
     @Test

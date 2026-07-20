@@ -5,6 +5,7 @@ import com.banca.gestionale_banca.user.constants.StatiRegistrazione;
 import com.banca.gestionale_banca.user.constants.StatiUtente;
 import com.banca.gestionale_banca.user.dto.RegisterRequest;
 import com.banca.gestionale_banca.user.dto.UpdateUserRequest;
+import com.banca.gestionale_banca.user.dto.UserStatsResponse;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ExternalServiceException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
@@ -236,6 +237,14 @@ class UserServiceImpl implements UserService {
     @Override
     public User changeUserStatus(Long id, String statusName) {
         User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
+
+        // Un utente ADMIN non puo' essere sospeso/bloccato (ne' riattivato) da questo
+        // endpoint, nemmeno da un altro ADMIN: protegge da lockout accidentali o abusi
+        // di potere tra amministratori. Gestione stato ADMIN solo via Keycloak diretto.
+        if (Ruoli.ADMIN.equals(u.getRole().getName())) {
+            throw new ConflictException("Non è possibile modificare lo stato di un utente ADMIN da questo pannello");
+        }
+
         UserStatus newStatus = userStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato '" + statusName + "' non valido"));
 
@@ -270,8 +279,15 @@ class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Page<User> getPaginatedUsers(Pageable pageable) {
-        return userrepo.findAllWithDetails(pageable);
+    public Page<User> getPaginatedUsers(String status, Pageable pageable) {
+        return userrepo.findAllWithDetails(status, pageable);
+    }
+
+    @Override
+    public UserStatsResponse getStats() {
+        return UserStatsResponse.builder()
+                .activeUsers(userrepo.countByStatus_Name(StatiUtente.ATTIVO))
+                .build();
     }
 
     // Crea solo le righe mancanti (non "solo se la tabella e' vuota"): un

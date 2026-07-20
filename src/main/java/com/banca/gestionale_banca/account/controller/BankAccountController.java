@@ -28,6 +28,7 @@ import com.banca.gestionale_banca.account.dto.ApproveAccountRequest;
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
+import com.banca.gestionale_banca.account.dto.BankAccountStatsResponse;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
@@ -54,7 +55,7 @@ public class BankAccountController {
 
     @PatchMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
-    public ResponseEntity<BankAccountResponse> approvaConto(@PathVariable Long id, @RequestBody ApproveAccountRequest request) {
+    public ResponseEntity<BankAccountResponse> approvaConto(@PathVariable Long id, @Valid @RequestBody ApproveAccountRequest request) {
         return ResponseEntity.ok(bankAccountService.approvaConto(id, request.isApproved()));
     }
 
@@ -67,13 +68,19 @@ public class BankAccountController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<Page<BankAccountAdminResponse>> listaConti(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Pageable pageable = PageRequest.of(page, size);
         return ResponseEntity.ok(bankAccountService.listaConti(pageable));
+    }
+
+    @GetMapping("/stats")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+    public ResponseEntity<BankAccountStatsResponse> getStats() {
+        return ResponseEntity.ok(bankAccountService.getStats());
     }
 
     @GetMapping("/{id}")
@@ -104,11 +111,12 @@ public class BankAccountController {
     }
 
     @GetMapping("/{id}/limits")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER','EMPLOYEE','ADMIN')")
     public ResponseEntity<AccountLimitsResponse> getLimiti(@PathVariable Long id,
                                                             @AuthenticationPrincipal Jwt jwt,
                                                             Authentication authentication) {
-        return ResponseEntity.ok(accountLimitsService.getLimiti(id, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+        boolean isStaff = authorizationFacade.isEmployee(authentication) || authorizationFacade.isAdmin(authentication);
+        return ResponseEntity.ok(accountLimitsService.getLimiti(id, jwt.getSubject(), isStaff));
     }
 
     @PutMapping("/{id}/limits")

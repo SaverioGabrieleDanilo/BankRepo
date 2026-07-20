@@ -3,6 +3,7 @@ package com.banca.gestionale_banca.account.service;
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
+import com.banca.gestionale_banca.account.dto.BankAccountStatsResponse;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.account.constants.StatiConto;
@@ -145,12 +146,15 @@ class BankAccountServiceImpl implements BankAccountService {
     }
 
     private String generaIban() {
-        // Deve rispettare esattamente @Iban: ^IT[0-9A-F]{20}$ (2 cifre di controllo +
-        // 18 esadecimali). UUID.randomUUID() genera esadecimale minuscolo, maiuscolato
-        // per restare nel range [0-9A-F] richiesto dal pattern.
-        int checkDigits = ThreadLocalRandom.current().nextInt(100);
-        String randomPart = UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase();
-        return String.format("IT%02d%s", checkDigits, randomPart);
+    String countryCode = "IT";
+    String bban = UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase();
+
+    String rearranged = bban + countryCode + "00";
+    String numeric = rearranged.chars()
+            .mapToObj(c -> Character.isDigit(c) ? String.valueOf((char) c) : String.valueOf(c - 'A' + 10))
+            .collect(java.util.stream.Collectors.joining());
+    int checkDigits = 98 - new java.math.BigInteger(numeric).mod(java.math.BigInteger.valueOf(97)).intValue();
+    return String.format("%s%02d%s", countryCode, checkDigits, bban);
     }
 
     private BankAccountResponse toResponse(BankAccount account) {
@@ -161,6 +165,14 @@ class BankAccountServiceImpl implements BankAccountService {
                 .contableBalance(account.getContableBalance())
                 .status(account.getStatus().getName())
                 .openingDate(account.getOpeningDate())
+                .build();
+    }
+
+    @Override
+    public BankAccountStatsResponse getStats() {
+        return BankAccountStatsResponse.builder()
+                .pendingApprovals(bankAccountRepository.countByStatus_Name(StatiConto.IN_ATTESA))
+                .totalManagedAssets(bankAccountRepository.sumBalanceByStatusName(StatiConto.ATTIVO))
                 .build();
     }
 

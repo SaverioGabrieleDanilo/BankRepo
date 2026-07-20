@@ -56,6 +56,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         """)
     List<Transaction> findAllByUserId(@Param("userId") Long userId);
 
+    @Query(value = """
+        SELECT t FROM Transaction t
+        JOIN FETCH t.type
+        JOIN FETCH t.status
+        JOIN FETCH t.payerAccount
+        JOIN FETCH t.payeeAccount
+        JOIN FETCH t.payerUser
+        JOIN FETCH t.payeeUser
+        LEFT JOIN FETCH t.depositType
+        WHERE t.payerAccount.iban = :iban OR t.payeeAccount.iban = :iban
+        ORDER BY t.transactionDate DESC
+        """)
+    List<Transaction> findAllByIban(@Param("iban") String iban);
+
     @Query("""
         SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
         WHERE t.payerAccount.id = :accountId

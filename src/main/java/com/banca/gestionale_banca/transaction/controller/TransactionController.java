@@ -75,6 +75,14 @@ public class TransactionController {
         return ResponseEntity.ok(transactionservice.getUserTransactions(jwt.getSubject()));
     }
 
+    @GetMapping("/by-iban")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<List<TransactionResponse>> getTransazioniByIban(@RequestParam String iban,
+                                                                           @AuthenticationPrincipal Jwt jwt,
+                                                                           Authentication authentication) {
+        return ResponseEntity.ok(transactionservice.getTransazioniByIban(iban, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<TransactionResponse> getTransazione(@PathVariable Long id) {
@@ -82,7 +90,7 @@ public class TransactionController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<Page<TransactionAdminResponse>> listaTransazioni(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {

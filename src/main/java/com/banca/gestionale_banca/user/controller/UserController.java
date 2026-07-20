@@ -17,20 +17,23 @@ import com.banca.gestionale_banca.user.dto.RegisterRequest;
 import com.banca.gestionale_banca.user.dto.UpdateUserRequest;
 import com.banca.gestionale_banca.user.dto.UserResponse;
 import com.banca.gestionale_banca.user.dto.UserStatusRequest;
+import com.banca.gestionale_banca.user.dto.UserStatsResponse;
 import com.banca.gestionale_banca.user.dto.RegistrationStatusRequest;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
+import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.service.UserService;
 
 import jakarta.validation.Valid;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/utenti")
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
+    private final AuthorizationFacade authorizationFacade;
 
     @PostMapping("/registra")
     public ResponseEntity<UserResponse> registerUser(@Valid @RequestBody RegisterRequest request) {
@@ -59,8 +62,7 @@ public class UserController {
         User user = userService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
 
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isAdmin = authorizationFacade.isAdmin(authentication);
         boolean isOwner = jwt.getSubject().equals(user.getKeycloakId());
 
         if (!isAdmin && !isOwner) {
@@ -70,14 +72,21 @@ public class UserController {
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
+    @GetMapping("/stats")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    public ResponseEntity<UserStatsResponse> getStats() {
+        return ResponseEntity.ok(userService.getStats());
+    }
+
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<Page<UserResponse>> getPaginatedUsers(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String status) {
 
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(userService.getPaginatedUsers(pageable).map(UserResponse::from));
+        return ResponseEntity.ok(userService.getPaginatedUsers(status, pageable).map(UserResponse::from));
     }
 
     @PutMapping("/{id}")
@@ -90,8 +99,7 @@ public class UserController {
         User user = userService.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
 
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isAdmin = authorizationFacade.isAdmin(authentication);
         boolean isOwner = jwt.getSubject().equals(user.getKeycloakId());
 
         if (!isAdmin && request.getRole() != null) {

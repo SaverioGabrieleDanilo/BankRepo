@@ -22,5 +22,6 @@ public interface TransactionService {
     Page<TransactionAdminResponse> getTransazioniPaginate(Pageable pageable);
     Page<TransactionAdminResponse> getTransazioniByConto(Long accountId, String keycloakId, boolean isEmployee, Pageable pageable);
     List<TransactionResponse> getUserTransactions(String keycloakId);
+    List<TransactionResponse> getTransazioniByIban(String iban, String keycloakId, boolean isEmployee);
 
 }

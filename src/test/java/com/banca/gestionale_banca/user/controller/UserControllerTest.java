@@ -157,4 +157,22 @@ class UserControllerTest {
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void listaUtenti_conRuoloEmployee_e200() throws Exception {
+        when(userService.getPaginatedUsers(any(), any())).thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of()));
+
+        mockMvc.perform(get("/api/utenti")
+                        .with(jwt().jwt(j -> j.subject("employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void listaUtenti_conRuoloCustomer_e403() throws Exception {
+        mockMvc.perform(get("/api/utenti")
+                        .with(jwt().jwt(j -> j.subject("customer-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .andExpect(status().isForbidden());
+    }
 }

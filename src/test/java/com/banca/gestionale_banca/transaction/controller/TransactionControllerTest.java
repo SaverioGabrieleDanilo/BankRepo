@@ -13,12 +13,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -190,6 +192,24 @@ class TransactionControllerTest {
     @Test
     void getTransazione_conRuoloCustomer_e403() throws Exception {
         mockMvc.perform(get("/api/transactions/1")
+                        .with(jwt().jwt(j -> j.subject("customer-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listaTransazioni_conRuoloEmployee_e200() throws Exception {
+        when(transactionservice.getTransazioniPaginate(any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/transactions")
+                        .with(jwt().jwt(j -> j.subject("employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void listaTransazioni_conRuoloCustomer_e403() throws Exception {
+        mockMvc.perform(get("/api/transactions")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
                 .andExpect(status().isForbidden());
