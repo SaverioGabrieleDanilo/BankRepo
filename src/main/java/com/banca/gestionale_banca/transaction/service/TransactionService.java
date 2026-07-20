@@ -12,6 +12,8 @@ import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
 
+import java.util.List;
+
 public interface TransactionService {
     TransactionResponse eseguiVersamento(DepositRequest request, String keycloakId, boolean isEmployee);
     TransactionResponse eseguiPrelievo(TransactionRequest request, String keycloakId, boolean isEmployee);
@@ -23,5 +25,4 @@ public interface TransactionService {
     Page<TransactionAdminResponse> getTransazioniByConto(Long accountId, String keycloakId, boolean isEmployee, Pageable pageable);
     List<TransactionResponse> getUserTransactions(String keycloakId);
     List<TransactionResponse> getTransazioniByIban(String iban, String keycloakId, boolean isEmployee);
-
 }

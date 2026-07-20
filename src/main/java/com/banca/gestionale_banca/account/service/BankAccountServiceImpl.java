@@ -12,12 +12,14 @@ import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.account.repository.AccountStatusRepository;
 import com.banca.gestionale_banca.account.repository.BankAccountRepository;
 import com.banca.gestionale_banca.user.model.User;
+import com.banca.gestionale_banca.user.repository.UserRepository;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.user.service.UserService;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,12 +37,13 @@ class BankAccountServiceImpl implements BankAccountService {
     private final AccountStatusRepository accountStatusRepository;
     private final UserService userService;
     private final AuthorizationFacade authorizationFacade;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
     public BankAccountResponse apriConto(String keycloakId) {
         User user = userService.findByKeycloakId(keycloakId)
-                .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
+                .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
 
         AccountStatus status = accountStatusRepository.findByName(StatiConto.IN_ATTESA)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato conto IN_ATTESA non configurato"));
@@ -70,7 +73,8 @@ class BankAccountServiceImpl implements BankAccountService {
             throw new ConflictException("Il conto non è in attesa di approvazione");
         }
 
-        AccountStatus newStatus = accountStatusRepository.findByName(approved ? StatiConto.ATTIVO : StatiConto.RIFIUTATO)
+        AccountStatus newStatus = accountStatusRepository
+                .findByName(approved ? StatiConto.ATTIVO : StatiConto.RIFIUTATO)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato conto non configurato"));
 
         account.setStatus(newStatus);
@@ -86,7 +90,8 @@ class BankAccountServiceImpl implements BankAccountService {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a chiudere questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee,
+                "Non autorizzato a chiudere questo conto");
 
         if (account.getBalance().compareTo(BigDecimal.ZERO) != 0) {
             throw new ConflictException("Impossibile chiudere il conto: il saldo deve essere zero");
@@ -107,7 +112,7 @@ class BankAccountServiceImpl implements BankAccountService {
         BankAccount account = bankAccountRepository.findByIdWithUser(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
 
         return toResponse(account);
     }
@@ -131,6 +136,29 @@ class BankAccountServiceImpl implements BankAccountService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<BankAccountResponseDTO> getUserBankAccountsByUsername(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Utente non trovato con username: " + username));
+
+        List<BankAccount> accounts = bankAccountRepository.findByUserId(user.getId());
+
+        return accounts.stream()
+                .map(acc -> new BankAccountResponseDTO(
+                        acc.getId(),
+                        acc.getIban(),
+                        acc.getBalance(),
+                        acc.getContableBalance(),
+                        acc.getUser().getId(),
+                        acc.getStatus() != null ? acc.getStatus().getName() : null,
+                        acc.getOpeningDate(),
+                        acc.getCreatedAt()
+                ))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<BankAccountAdminResponse> listaConti(Pageable pageable) {
         return bankAccountRepository.findAllWithUser(pageable)
                 .map(account -> BankAccountAdminResponse.builder()
@@ -143,29 +171,6 @@ class BankAccountServiceImpl implements BankAccountService {
                         .ownerFullName(account.getUser().getFirstName() + " " + account.getUser().getLastName())
                         .openingDate(account.getOpeningDate())
                         .build());
-    }
-
-    private String generaIban() {
-    String countryCode = "IT";
-    String bban = UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase();
-
-    String rearranged = bban + countryCode + "00";
-    String numeric = rearranged.chars()
-            .mapToObj(c -> Character.isDigit(c) ? String.valueOf((char) c) : String.valueOf(c - 'A' + 10))
-            .collect(java.util.stream.Collectors.joining());
-    int checkDigits = 98 - new java.math.BigInteger(numeric).mod(java.math.BigInteger.valueOf(97)).intValue();
-    return String.format("%s%02d%s", countryCode, checkDigits, bban);
-    }
-
-    private BankAccountResponse toResponse(BankAccount account) {
-        return BankAccountResponse.builder()
-                .id(account.getId())
-                .iban(account.getIban())
-                .balance(account.getBalance())
-                .contableBalance(account.getContableBalance())
-                .status(account.getStatus().getName())
-                .openingDate(account.getOpeningDate())
-                .build();
     }
 
     @Override
@@ -194,5 +199,28 @@ class BankAccountServiceImpl implements BankAccountService {
     public BankAccount updateBalance(BankAccount account, BigDecimal newBalance) {
         account.setBalance(newBalance);
         return bankAccountRepository.save(account);
+    }
+
+    private String generaIban() {
+        String countryCode = "IT";
+        String bban = UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase();
+
+        String rearranged = bban + countryCode + "00";
+        String numeric = rearranged.chars()
+                .mapToObj(c -> Character.isDigit(c) ? String.valueOf((char) c) : String.valueOf(c - 'A' + 10))
+                .collect(java.util.stream.Collectors.joining());
+        int checkDigits = 98 - new java.math.BigInteger(numeric).mod(java.math.BigInteger.valueOf(97)).intValue();
+        return String.format("%s%02d%s", countryCode, checkDigits, bban);
+    }
+
+    private BankAccountResponse toResponse(BankAccount account) {
+        return BankAccountResponse.builder()
+                .id(account.getId())
+                .iban(account.getIban())
+                .balance(account.getBalance())
+                .contableBalance(account.getContableBalance())
+                .status(account.getStatus().getName())
+                .openingDate(account.getOpeningDate())
+                .build();
     }
 }

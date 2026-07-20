@@ -1,5 +1,7 @@
 package com.banca.gestionale_banca.account.controller;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -19,8 +21,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
-
-import java.util.List;
 
 import com.banca.gestionale_banca.account.dto.AccountLimitsRequest;
 import com.banca.gestionale_banca.account.dto.AccountLimitsResponse;

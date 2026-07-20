@@ -32,6 +32,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -41,10 +42,11 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-class TransactionServiceImpl implements TransactionService {
+public class TransactionServiceImpl implements TransactionService {
 
     @Value("${app.transaction.fee-percentage}")
     private BigDecimal feePercentage;
+
     private final BankAccountService bankAccountService;
     private final BankAccountRepository bankAccountRepository;
     private final TransactionRepository transactionRepository;
@@ -59,7 +61,7 @@ class TransactionServiceImpl implements TransactionService {
     @Transactional
     public TransactionResponse eseguiVersamento(DepositRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = trovaConto(request.getIban(), "Conto corrente non trovato");
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         bankAccountService.assertActive(account, "Il conto corrente non è attivo");
 
         TransactionType type = trovaTipo(TipiTransazione.VERSAMENTO);
@@ -78,7 +80,7 @@ class TransactionServiceImpl implements TransactionService {
     @Transactional
     public TransactionResponse eseguiPrelievo(TransactionRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = trovaConto(request.getIban(), "Conto corrente non trovato");
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         bankAccountService.assertActive(account, "Il conto corrente non è attivo");
 
         if (account.getBalance().compareTo(request.getAmount()) < 0) {
@@ -101,14 +103,14 @@ class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse eseguiBonifico(TransferRequest request, String keycloakId, boolean isEmployee) {
-        if(request.getSourceIban().equals(request.getTargetIban())){
+        if (request.getSourceIban().equals(request.getTargetIban())) {
             throw new ConflictException("Il conto di origine e quello di destinazione non possono coincidere");
         }
         Map<String, BankAccount> lockedAccounts = lockAccountsInOrder(request.getSourceIban(), request.getTargetIban());
         BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
         BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
 
-        authorizationFacade.verificaProprietario(sourceAccount.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
+        authorizationFacade.verifyOwnership(sourceAccount.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         bankAccountService.assertActive(sourceAccount, "Il conto di origine non è attivo");
         bankAccountService.assertActive(targetAccount, "Il conto di destinazione non è attivo");
 
@@ -143,7 +145,7 @@ class TransactionServiceImpl implements TransactionService {
         BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
         BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
 
-        authorizationFacade.verificaProprietario(sourceAccount.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
+        authorizationFacade.verifyOwnership(sourceAccount.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
 
         if (!sourceAccount.getUser().getId().equals(targetAccount.getUser().getId())) {
             throw new ConflictException("Il giroconto è consentito solo tra conti dello stesso intestatario");
@@ -189,7 +191,7 @@ class TransactionServiceImpl implements TransactionService {
         BankAccount account = bankAccountRepository.findByIdWithUser(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare le transazioni di questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare le transazioni di questo conto");
 
         return transactionRepository.findAllByAccountId(accountId, pageable).map(this::toAdminResponse);
     }
@@ -219,7 +221,7 @@ class TransactionServiceImpl implements TransactionService {
         BankAccount account = bankAccountRepository.findByIbanWithUser(iban)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee,
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee,
                 "Non autorizzato a consultare le transazioni di questo conto");
 
         return transactionRepository.findAllByIban(iban).stream()

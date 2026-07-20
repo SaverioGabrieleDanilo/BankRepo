@@ -19,7 +19,7 @@ public class AuthorizationFacade {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_" + Ruoli.ADMIN));
     }
 
-    public void verificaProprietario(String ownerKeycloakId, String keycloakId, boolean isEmployee, String messageIfNotAuthorized) {
+    public void verifyOwnership(String ownerKeycloakId, String keycloakId, boolean isEmployee, String messageIfNotAuthorized) {
         if (isEmployee) {
             return;
         }

@@ -16,8 +16,8 @@ public class BankAccountResponseDTO {
     private String iban;
     private BigDecimal balance;
     private BigDecimal contableBalance;
-    private Long userId;
-    private String statusName;
+    private Long userId;                  // Evita di esporre l'intero oggetto User
+    private String statusName;            // Prende il nome dalla tabella dello stato
     private LocalDateTime openingDate;
     private LocalDateTime createdAt;
 }

@@ -78,6 +78,12 @@ public class UserController {
         return ResponseEntity.ok(userService.getStats());
     }
 
+    @GetMapping("/check")
+    public ResponseEntity<String> testRoute(@AuthenticationPrincipal Jwt jwt) {
+        String username = jwt.getClaimAsString("preferred_username");
+        return ResponseEntity.ok("Connessione OK! Token valido per l'utente: " + username);
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<Page<UserResponse>> getPaginatedUsers(

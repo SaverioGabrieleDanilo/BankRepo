@@ -18,6 +18,7 @@ public interface BankAccountService {
     BankAccountResponse chiudiConto(Long accountId, String keycloakId, boolean isEmployee);
     BankAccountResponse getContoById(Long accountId, String keycloakId, boolean isEmployee);
     List<BankAccountResponseDTO> getUserBankAccounts(String keycloakId);
+    List<BankAccountResponseDTO> getUserBankAccountsByUsername(String username);
     Page<BankAccountAdminResponse> listaConti(Pageable pageable);
 
     /** Conteggi aggregati per la dashboard admin (KPI), calcolati sull'intera tabella. */

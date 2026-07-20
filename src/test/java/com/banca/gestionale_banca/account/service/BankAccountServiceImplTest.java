@@ -8,6 +8,7 @@ import com.banca.gestionale_banca.account.model.AccountStatus;
 import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
+import com.banca.gestionale_banca.user.repository.UserRepository;
 import com.banca.gestionale_banca.user.service.UserService;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -34,13 +35,15 @@ class BankAccountServiceImplTest {
     private AccountStatusRepository accountStatusRepository;
     @Mock
     private UserService userService;
+    @Mock
+    private UserRepository userRepository;
 
     private BankAccountServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new BankAccountServiceImpl(bankAccountRepository, accountStatusRepository,
-                userService, new AuthorizationFacade());
+                userService, new AuthorizationFacade(), userRepository);
     }
 
     @Test

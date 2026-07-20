@@ -18,8 +18,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     /**
      * Carica role/status/registrationStatus in join (invece che lazy) per evitare
-     * LazyInitializationException quando l'entity viene mappata a UserResponse fuori
-     * dalla sessione Hibernate (spring.jpa.open-in-view=false).
+     * LazyInitializationException quando l'entity viene mappata a UserResponse
+     * fuori dalla sessione Hibernate (spring.jpa.open-in-view=false).
      */
     @Query("SELECT u FROM User u JOIN FETCH u.role JOIN FETCH u.status JOIN FETCH u.registrationStatus WHERE u.id = :id")
     Optional<User> findByIdWithDetails(@Param("id") Long id);
