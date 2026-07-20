@@ -65,18 +65,18 @@ public class BankAccount {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    public void versa(BigDecimal amount) {
+    public void deposit(BigDecimal amount) {
         this.balance = this.balance.add(amount);
     }
 
-    public void preleva(BigDecimal amount) {
+    public void withdraw(BigDecimal amount) {
         if (this.balance.compareTo(amount) < 0) {
             throw new ConflictException("Saldo insufficiente");
         }
         this.balance = this.balance.subtract(amount);
     }
 
-    public boolean isAttivo() {
+    public boolean isActive() {
         return StatiConto.ATTIVO.equals(this.getStatus().getName());
     }
 }

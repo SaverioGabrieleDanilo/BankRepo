@@ -38,7 +38,7 @@ public class TransactionController {
     public ResponseEntity<TransactionResponse> versamento(@Valid @RequestBody TransactionRequest request,
             @AuthenticationPrincipal Jwt jwt,
             Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiVersamento(request, jwt.getSubject(),
+        return ResponseEntity.ok(transactionservice.executeDeposit(request, jwt.getSubject(),
                 authorizationFacade.isEmployee(authentication)));
     }
 
@@ -47,7 +47,7 @@ public class TransactionController {
     public ResponseEntity<TransactionResponse> prelievo(@Valid @RequestBody TransactionRequest request,
             @AuthenticationPrincipal Jwt jwt,
             Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiPrelievo(request, jwt.getSubject(),
+        return ResponseEntity.ok(transactionservice.executeWithdrawal(request, jwt.getSubject(),
                 authorizationFacade.isEmployee(authentication)));
     }
 
@@ -56,7 +56,7 @@ public class TransactionController {
     public ResponseEntity<TransactionResponse> bonifico(@Valid @RequestBody TransferRequest request,
             @AuthenticationPrincipal Jwt jwt,
             Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiBonifico(request, jwt.getSubject(),
+        return ResponseEntity.ok(transactionservice.executeWireTransfer(request, jwt.getSubject(),
                 authorizationFacade.isEmployee(authentication)));
     }
 
@@ -65,14 +65,14 @@ public class TransactionController {
     public ResponseEntity<TransactionResponse> giroconto(@Valid @RequestBody GirocontoRequest request,
             @AuthenticationPrincipal Jwt jwt,
             Authentication authentication) {
-        return ResponseEntity.ok(transactionservice.eseguiGiroconto(request, jwt.getSubject(),
+        return ResponseEntity.ok(transactionservice.executeInternalTransfer(request, jwt.getSubject(),
                 authorizationFacade.isEmployee(authentication)));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<TransactionResponse> getTransazione(@PathVariable Long id) {
-        return ResponseEntity.ok(transactionservice.getTransazioneById(id));
+        return ResponseEntity.ok(transactionservice.getTransactionById(id));
     }
 
     @GetMapping("/user-transfers")

@@ -30,7 +30,7 @@ class AccountLimitsServiceImpl implements AccountLimitsService {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
 
         AccountLimits limits = accountLimitsRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Limiti non ancora configurati per questo conto"));

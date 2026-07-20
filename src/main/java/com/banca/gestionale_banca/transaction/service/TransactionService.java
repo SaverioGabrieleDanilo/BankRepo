@@ -9,15 +9,15 @@ import java.util.List;
 
 public interface TransactionService {
 
-    TransactionResponse eseguiVersamento(TransactionRequest request, String keycloakId, boolean isEmployee);
+    TransactionResponse executeDeposit(TransactionRequest request, String keycloakId, boolean isEmployee);
 
-    TransactionResponse eseguiPrelievo(TransactionRequest request, String keycloakId, boolean isEmployee);
+    TransactionResponse executeWithdrawal(TransactionRequest request, String keycloakId, boolean isEmployee);
 
-    TransactionResponse eseguiBonifico(TransferRequest request, String keycloakId, boolean isEmployee);
+    TransactionResponse executeWireTransfer(TransferRequest request, String keycloakId, boolean isEmployee);
 
-    TransactionResponse eseguiGiroconto(GirocontoRequest request, String keycloakId, boolean isEmployee);
+    TransactionResponse executeInternalTransfer(GirocontoRequest request, String keycloakId, boolean isEmployee);
 
-    TransactionResponse getTransazioneById(Long id);
+    TransactionResponse getTransactionById(Long id);
 
     List<TransactionResponse> getUserTransactions(String username);
 
