@@ -169,7 +169,7 @@ class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public TransactionResponse getTransazioneById(Long id) {
         Transaction tx = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transazione non trovata"));
