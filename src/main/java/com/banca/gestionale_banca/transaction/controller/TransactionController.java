@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.banca.gestionale_banca.transaction.dto.BankAccountTransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
+import com.banca.gestionale_banca.transaction.dto.TransactionDetailsResponse;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
@@ -69,10 +70,10 @@ public class TransactionController {
                 authorizationFacade.isEmployee(authentication)));
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
-    public ResponseEntity<TransactionResponse> getTransazione(@PathVariable Long id) {
-        return ResponseEntity.ok(transactionservice.getTransactionById(id));
+    @GetMapping("/{id}/details")
+    // @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+    public ResponseEntity<TransactionDetailsResponse> getTransazione(@PathVariable Long id) {
+        return ResponseEntity.ok(transactionservice.getTransactionDetailsResponse(id));
     }
 
     @GetMapping("/user-transfers")

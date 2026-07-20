@@ -3,6 +3,7 @@ package com.banca.gestionale_banca.transaction.service;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
+import com.banca.gestionale_banca.transaction.dto.TransactionDetailsResponse;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
@@ -166,21 +167,48 @@ public class TransactionServiceImpl implements TransactionService {
         return buildResponse(transaction, sourceAccount.getIban(), null, false);
     }
 
-    @Override
+@Override
     @Transactional(readOnly = true)
-    public TransactionResponse getTransactionById(Long id) {
+    public TransactionDetailsResponse getTransactionDetailsResponse(Long id) {
+        // 1. Recupera la transazione (puoi usare un metodo con fetch join se vuoi evitare problemi di Lazy loading)
         Transaction tx = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
 
-        boolean isIncoming = tx.getPayeeAccount() != null && tx.getPayerAccount() != null
-                && tx.getPayerAccount().getId().equals(tx.getPayeeAccount().getId()) 
-                && TipiTransazione.VERSAMENTO.equals(tx.getType().getName());
+        TransactionDetailsResponse dto = new TransactionDetailsResponse();
+        dto.setId(tx.getId().toString());
+        dto.setAmount(tx.getAmount());
+        dto.setDate(tx.getTransactionDate());
+        dto.setCause(tx.getDescription());
 
-        String displayedIban = tx.getPayerAccount() != null ? tx.getPayerAccount().getIban() : "";
-        BigDecimal fee = calculateFee(tx.getAmount(), tx.getType().getName());
+        // 2. Mappatura del Pagante (Sender)
+        User payer = tx.getPayerUser();
+        BankAccount payerAccount = tx.getPayerAccount();
+        
+        TransactionDetailsResponse.PartyDto senderDto = new TransactionDetailsResponse.PartyDto();
+        if (payer != null) {
+            senderDto.setFirstName(payer.getFirstName());
+            senderDto.setLastName(payer.getLastName());
+        }
+        if (payerAccount != null) {
+            senderDto.setIban(payerAccount.getIban());
+        }
+        dto.setSender(senderDto);
 
-        // FIX: Uso displayedIban e fee, prima erano ignorati
-        return buildResponse(tx, displayedIban, fee, isIncoming);
+        // 3. Mappatura del Beneficiario (Recipient)
+        User payee = tx.getPayeeUser();
+        BankAccount payeeAccount = tx.getPayeeAccount();
+        
+        TransactionDetailsResponse.PartyDto recipientDto = new TransactionDetailsResponse.PartyDto();
+        if (payee != null) {
+            recipientDto.setFirstName(payee.getFirstName());
+            recipientDto.setLastName(payee.getLastName());
+        }
+        if (payeeAccount != null) {
+            recipientDto.setIban(payeeAccount.getIban());
+        }
+        dto.setRecipient(recipientDto);
+
+        return dto;
     }
 
     @Override

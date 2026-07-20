@@ -1,6 +1,7 @@
 package com.banca.gestionale_banca.transaction.service;
 
 import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
+import com.banca.gestionale_banca.transaction.dto.TransactionDetailsResponse;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
@@ -17,7 +18,9 @@ public interface TransactionService {
 
     TransactionResponse executeInternalTransfer(GirocontoRequest request, String keycloakId, boolean isEmployee);
 
-    TransactionResponse getTransactionById(Long id);
+    // TransactionResponse getTransactionById(Long id);
+
+    TransactionDetailsResponse getTransactionDetailsResponse(Long id);
 
     List<TransactionResponse> getUserTransactions(String username);
 
