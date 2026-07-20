@@ -20,6 +20,7 @@ import com.banca.gestionale_banca.user.dto.UserStatusRequest;
 import com.banca.gestionale_banca.user.dto.UserStatsResponse;
 import com.banca.gestionale_banca.user.dto.RegistrationStatusRequest;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
+import com.banca.gestionale_banca.shared.security.AuditLogger;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.service.UserService;
@@ -33,6 +34,7 @@ import lombok.RequiredArgsConstructor;
 public class UserController {
 
     private final UserService userService;
+    private final AuditLogger auditLogger;
     private final AuthorizationFacade authorizationFacade;
 
     @PostMapping("/registra")
@@ -63,9 +65,10 @@ public class UserController {
                 .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
 
         boolean isAdmin = authorizationFacade.isAdmin(authentication);
+        boolean isEmployee = authorizationFacade.isEmployee(authentication);
         boolean isOwner = jwt.getSubject().equals(user.getKeycloakId());
 
-        if (!isAdmin && !isOwner) {
+        if (!isAdmin && !isEmployee && !isOwner) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato a consultare questo utente");
         }
 
@@ -120,20 +123,27 @@ public class UserController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<Void> deactivateUser(@PathVariable Long id) {
+    public ResponseEntity<Void> deactivateUser(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
         userService.deactivateUser(id);
+        auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "DISATTIVA_UTENTE", "utente", id);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<UserResponse> changeUserStatus(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request) {
-        return ResponseEntity.ok(UserResponse.from(userService.changeUserStatus(id, request.getStatus())));
+    public ResponseEntity<UserResponse> changeUserStatus(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request,
+                                                          @AuthenticationPrincipal Jwt jwt) {
+        UserResponse response = UserResponse.from(userService.changeUserStatus(id, request.getStatus()));
+        auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "CAMBIA_STATO_UTENTE", "utente", id);
+        return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/{id}/registration-status")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<UserResponse> changeRegistrationStatus(@PathVariable Long id, @Valid @RequestBody RegistrationStatusRequest request) {
-        return ResponseEntity.ok(UserResponse.from(userService.changeRegistrationStatus(id, request.getRegistrationStatus())));
+    public ResponseEntity<UserResponse> changeRegistrationStatus(@PathVariable Long id, @Valid @RequestBody RegistrationStatusRequest request,
+                                                                  @AuthenticationPrincipal Jwt jwt) {
+        UserResponse response = UserResponse.from(userService.changeRegistrationStatus(id, request.getRegistrationStatus()));
+        auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "CAMBIA_STATO_REGISTRAZIONE", "utente", id);
+        return ResponseEntity.ok(response);
     }
 }

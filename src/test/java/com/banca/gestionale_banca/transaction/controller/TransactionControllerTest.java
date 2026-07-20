@@ -1,5 +1,6 @@
 package com.banca.gestionale_banca.transaction.controller;
 
+import com.banca.gestionale_banca.shared.security.AuditLogger;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.shared.security.SecurityConfig;
 import com.banca.gestionale_banca.transaction.dto.DepositRequest;
@@ -7,6 +8,7 @@ import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
+import com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse;
 import com.banca.gestionale_banca.transaction.service.TransactionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -18,7 +20,6 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -36,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * le richieste lungo tutta la catena HTTP (non solo a livello di service).
  */
 @WebMvcTest(TransactionController.class)
-@Import({SecurityConfig.class, AuthorizationFacade.class})
+@Import({SecurityConfig.class, AuthorizationFacade.class, AuditLogger.class})
 class TransactionControllerTest {
 
     @Autowired

@@ -1,5 +1,7 @@
 package com.banca.gestionale_banca.user.controller;
 
+import com.banca.gestionale_banca.shared.security.AuditLogger;
+import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.shared.security.SecurityConfig;
 import com.banca.gestionale_banca.user.dto.UpdateUserRequest;
 import com.banca.gestionale_banca.user.model.RegistrationStatus;
@@ -12,11 +14,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -30,7 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, AuditLogger.class, AuthorizationFacade.class})
 class UserControllerTest {
 
     @Autowired
@@ -149,6 +153,16 @@ class UserControllerTest {
     }
 
     @Test
+    void employee_leggeProfiloDiUnAltroUtente_e200() throws Exception {
+        when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
+
+        mockMvc.perform(get("/api/utenti/1")
+                        .with(jwt().jwt(j -> j.subject("un-altro-employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void nonOwnerNonAdmin_leggeProfiloAltrui_vieneRifiutatoCon403() throws Exception {
         when(userService.findById(1L)).thenReturn(Optional.of(contoCustomer()));
 
@@ -159,8 +173,18 @@ class UserControllerTest {
     }
 
     @Test
+    void listaUtenti_conRuoloAdmin_e200() throws Exception {
+        when(userService.getPaginatedUsers(any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/utenti")
+                        .with(jwt().jwt(j -> j.subject("admin-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void listaUtenti_conRuoloEmployee_e200() throws Exception {
-        when(userService.getPaginatedUsers(any(), any())).thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of()));
+        when(userService.getPaginatedUsers(any(), any())).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/utenti")
                         .with(jwt().jwt(j -> j.subject("employee-id"))

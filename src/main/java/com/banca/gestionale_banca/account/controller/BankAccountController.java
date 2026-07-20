@@ -31,6 +31,7 @@ import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
 import com.banca.gestionale_banca.account.dto.BankAccountStatsResponse;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
+import com.banca.gestionale_banca.shared.security.AuditLogger;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse;
 import com.banca.gestionale_banca.transaction.service.TransactionService;
@@ -46,6 +47,7 @@ public class BankAccountController {
     private final AccountLimitsService accountLimitsService;
     private final TransactionService transactionService;
     private final AuthorizationFacade authorizationFacade;
+    private final AuditLogger auditLogger;
 
     @PostMapping("/apertura")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
@@ -55,16 +57,25 @@ public class BankAccountController {
 
     @PatchMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
-    public ResponseEntity<BankAccountResponse> approvaConto(@PathVariable Long id, @Valid @RequestBody ApproveAccountRequest request) {
-        return ResponseEntity.ok(bankAccountService.approvaConto(id, request.isApproved()));
+    public ResponseEntity<BankAccountResponse> approvaConto(@PathVariable Long id, @Valid @RequestBody ApproveAccountRequest request,
+                                                             @AuthenticationPrincipal Jwt jwt) {
+        BankAccountResponse response = bankAccountService.approvaConto(id, request.isApproved());
+        auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"),
+                request.isApproved() ? "APPROVA_CONTO" : "RIFIUTA_CONTO", "conto", id);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/{id}/chiusura")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER','EMPLOYEE')")
     public ResponseEntity<BankAccountResponse> chiudiConto(@PathVariable Long id,
                                                             @AuthenticationPrincipal Jwt jwt,
                                                             Authentication authentication) {
-        return ResponseEntity.ok(bankAccountService.chiudiConto(id, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+        boolean isEmployee = authorizationFacade.isEmployee(authentication);
+        BankAccountResponse response = bankAccountService.chiudiConto(id, jwt.getSubject(), isEmployee);
+        if (isEmployee) {
+            auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "CHIUDI_CONTO", "conto", id);
+        }
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping
@@ -84,7 +95,7 @@ public class BankAccountController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER','EMPLOYEE')")
     public ResponseEntity<BankAccountResponse> getConto(@PathVariable Long id,
                                                          @AuthenticationPrincipal Jwt jwt,
                                                          Authentication authentication) {
@@ -98,7 +109,7 @@ public class BankAccountController {
     }
 
     @GetMapping("/{id}/transazioni")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER','EMPLOYEE')")
     public ResponseEntity<Page<TransactionAdminResponse>> getTransazioniConto(
             @PathVariable Long id,
             @RequestParam(defaultValue = "0") int page,
@@ -126,6 +137,10 @@ public class BankAccountController {
                                                                 @AuthenticationPrincipal Jwt jwt,
                                                                 Authentication authentication) {
         boolean isStaff = authorizationFacade.isEmployee(authentication) || authorizationFacade.isAdmin(authentication);
-        return ResponseEntity.ok(accountLimitsService.impostaLimiti(id, request, jwt.getSubject(), isStaff));
+        AccountLimitsResponse response = accountLimitsService.impostaLimiti(id, request, jwt.getSubject(), isStaff);
+        if (isStaff) {
+            auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "MODIFICA_LIMITI", "conto", id);
+        }
+        return ResponseEntity.ok(response);
     }
 }

@@ -23,17 +23,15 @@ import com.banca.gestionale_banca.transaction.model.TransactionType;
 import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.service.UserService;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
+import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -68,6 +66,7 @@ class TransactionServiceImplTest {
         service = new TransactionServiceImpl(bankAccountService, bankAccountRepository, transactionRepository,
                 transactionTypeRepository, transactionStatusRepository, depositTypeRepository, accountLimitsService,
                 new AuthorizationFacade(), userService);
+        ReflectionTestUtils.setField(service, "feePercentage", new BigDecimal("0.02"));
 
         lenient().when(transactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(transactionTypeRepository.findByName(any())).thenAnswer(invocation ->
