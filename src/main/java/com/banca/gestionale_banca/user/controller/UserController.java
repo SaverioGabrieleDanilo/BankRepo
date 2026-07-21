@@ -122,7 +122,7 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deactivateUser(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
         userService.deactivateUser(id);
         auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "DISATTIVA_UTENTE", "utente", id);
@@ -130,7 +130,7 @@ public class UserController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponse> changeUserStatus(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request,
                                                           @AuthenticationPrincipal Jwt jwt) {
         UserResponse response = UserResponse.from(userService.changeUserStatus(id, request.getStatus()));

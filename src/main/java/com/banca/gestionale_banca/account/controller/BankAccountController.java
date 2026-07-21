@@ -24,6 +24,7 @@ import jakarta.validation.Valid;
 
 import com.banca.gestionale_banca.account.dto.AccountLimitsRequest;
 import com.banca.gestionale_banca.account.dto.AccountLimitsResponse;
+import com.banca.gestionale_banca.account.dto.AccountStatusRequest;
 import com.banca.gestionale_banca.account.dto.ApproveAccountRequest;
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
@@ -62,6 +63,15 @@ public class BankAccountController {
         BankAccountResponse response = bankAccountService.approvaConto(id, request.isApproved());
         auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"),
                 request.isApproved() ? "APPROVA_CONTO" : "RIFIUTA_CONTO", "conto", id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('EMPLOYEE','ADMIN')")
+    public ResponseEntity<BankAccountResponse> cambiaStatoConto(@PathVariable Long id, @Valid @RequestBody AccountStatusRequest request,
+                                                                 @AuthenticationPrincipal Jwt jwt) {
+        BankAccountResponse response = bankAccountService.changeAccountStatus(id, request.getStatus());
+        auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "CAMBIA_STATO_CONTO", "conto", id);
         return ResponseEntity.ok(response);
     }
 

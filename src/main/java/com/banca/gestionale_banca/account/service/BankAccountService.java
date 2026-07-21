@@ -16,6 +16,7 @@ public interface BankAccountService {
     BankAccountResponse apriConto(String keycloakId);
     BankAccountResponse approvaConto(Long accountId, boolean approved);
     BankAccountResponse chiudiConto(Long accountId, String keycloakId, boolean isEmployee);
+    BankAccountResponse changeAccountStatus(Long accountId, String statusName);
     BankAccountResponse getContoById(Long accountId, String keycloakId, boolean isEmployee);
     List<BankAccountResponseDTO> getUserBankAccounts(String keycloakId);
     List<BankAccountResponseDTO> getUserBankAccountsByUsername(String username);

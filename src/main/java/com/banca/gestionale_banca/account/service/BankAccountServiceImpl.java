@@ -108,6 +108,22 @@ class BankAccountServiceImpl implements BankAccountService {
     }
 
     @Override
+    @Transactional
+    public BankAccountResponse changeAccountStatus(Long accountId, String statusName) {
+        BankAccount account = bankAccountRepository.findById(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
+
+        AccountStatus newStatus = accountStatusRepository.findByName(statusName)
+                .orElseThrow(() -> new ResourceNotFoundException("Stato conto '" + statusName + "' non valido"));
+
+        account.setStatus(newStatus);
+        account.setUpdatedAt(LocalDateTime.now());
+        account = bankAccountRepository.save(account);
+
+        return toResponse(account);
+    }
+
+    @Override
     public BankAccountResponse getContoById(Long accountId, String keycloakId, boolean isEmployee) {
         BankAccount account = bankAccountRepository.findByIdWithUser(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
