@@ -1,6 +1,8 @@
 package com.banca.gestionale_banca.transaction.repository;
 
 import com.banca.gestionale_banca.transaction.model.Transaction;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -8,9 +10,65 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+
+    @Query(value = """
+        SELECT t FROM Transaction t
+        JOIN FETCH t.type
+        JOIN FETCH t.status
+        JOIN FETCH t.payerAccount
+        JOIN FETCH t.payeeAccount
+        JOIN FETCH t.payerUser
+        JOIN FETCH t.payeeUser
+        ORDER BY t.transactionDate DESC
+        """,
+        countQuery = "SELECT COUNT(t) FROM Transaction t")
+    Page<Transaction> findAllWithDetails(Pageable pageable);
+
+    @Query(value = """
+        SELECT t FROM Transaction t
+        JOIN FETCH t.type
+        JOIN FETCH t.status
+        JOIN FETCH t.payerAccount
+        JOIN FETCH t.payeeAccount
+        JOIN FETCH t.payerUser
+        JOIN FETCH t.payeeUser
+        WHERE t.payerAccount.id = :accountId OR t.payeeAccount.id = :accountId
+        ORDER BY t.transactionDate DESC
+        """,
+        countQuery = "SELECT COUNT(t) FROM Transaction t WHERE t.payerAccount.id = :accountId OR t.payeeAccount.id = :accountId")
+    Page<Transaction> findAllByAccountId(@Param("accountId") Long accountId, Pageable pageable);
+
+    @Query(value = """
+        SELECT t FROM Transaction t
+        JOIN FETCH t.type
+        JOIN FETCH t.status
+        JOIN FETCH t.payerAccount
+        JOIN FETCH t.payeeAccount
+        JOIN FETCH t.payerUser
+        JOIN FETCH t.payeeUser
+        LEFT JOIN FETCH t.depositType
+        WHERE t.payerUser.id = :userId OR t.payeeUser.id = :userId
+        ORDER BY t.transactionDate DESC
+        """)
+    List<Transaction> findAllByUserId(@Param("userId") Long userId);
+
+    @Query(value = """
+        SELECT t FROM Transaction t
+        JOIN FETCH t.type
+        JOIN FETCH t.status
+        JOIN FETCH t.payerAccount
+        JOIN FETCH t.payeeAccount
+        JOIN FETCH t.payerUser
+        JOIN FETCH t.payeeUser
+        LEFT JOIN FETCH t.depositType
+        WHERE t.payerAccount.iban = :iban OR t.payeeAccount.iban = :iban
+        ORDER BY t.transactionDate DESC
+        """)
+    List<Transaction> findAllByIban(@Param("iban") String iban);
 
     @Query("""
         SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t

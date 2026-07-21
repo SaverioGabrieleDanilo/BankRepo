@@ -15,7 +15,7 @@ import java.time.LocalDate;
 
 // Automatizza il passo "Bootstrap del primo utente ADMIN" del README (altrimenti
 // manuale: creazione utente su Keycloak + INSERT a mano coerente su 'users').
-// Riusa UserServiceImpl.registraUtenteConRuolo cosi' la creazione (Keycloak + DB,
+// Riusa UserServiceImpl.registerUserWithRole cosi' la creazione (Keycloak + DB,
 // con cleanup dell'utente Keycloak orfano in caso di fallimento) resta un solo
 // percorso di codice, non duplicato qui.
 @Slf4j
@@ -25,10 +25,12 @@ import java.time.LocalDate;
 public class DefaultAdminBootstrapper implements CommandLineRunner {
 
     private static final String USERNAME = "admin";
-    private static final String PASSWORD = "AdminBanca#2026";
 
     @Value("${app.bootstrap.default-admin.enabled:false}")
     private boolean enabled;
+
+    @Value("${app.bootstrap.default-admin.password:}")
+    private String password;
 
     private final UserRepository userRepository;
     private final UserService userService;
@@ -38,23 +40,27 @@ public class DefaultAdminBootstrapper implements CommandLineRunner {
         if (!enabled) {
             return;
         }
+        if (password == null || password.isBlank()) {
+            log.error("app.bootstrap.default-admin.enabled=true ma app.bootstrap.default-admin.password non impostata: bootstrap ADMIN saltato.");
+            return;
+        }
         if (userRepository.existsByUsername(USERNAME)) {
             return;
         }
 
         RegisterRequest request = new RegisterRequest();
         request.setUsername(USERNAME);
-        request.setPassword(PASSWORD);
+        request.setPassword(password);
         request.setFirstName("Super");
         request.setLastName("Admin");
         request.setEmail("admin@example.com");
         request.setDateOfBirth(LocalDate.of(1990, 1, 1));
 
         try {
-            userService.registraUtenteConRuolo(request, Ruoli.ADMIN);
-            log.warn("Creato utente ADMIN di bootstrap (username='{}', password='{}') - SOLO SVILUPPO LOCALE. " +
+            userService.registerUserWithRole(request, Ruoli.ADMIN);
+            log.warn("Creato utente ADMIN di bootstrap (username='{}') - SOLO SVILUPPO LOCALE. " +
                     "Disabilita 'app.bootstrap.default-admin.enabled' prima di qualunque ambiente condiviso.",
-                    USERNAME, PASSWORD);
+                    USERNAME);
         } catch (Exception e) {
             log.error("Bootstrap ADMIN di default fallito: {}", e.getMessage(), e);
         }

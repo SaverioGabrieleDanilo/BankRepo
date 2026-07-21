@@ -13,7 +13,7 @@ import java.lang.annotation.Target;
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 @Constraint(validatedBy = {})
-@Pattern(regexp = "^[A-Z]{2}\\d{2}[A-Z0-9]{1,30}$")
+@Pattern(regexp = "^IT[0-9A-F]{20}$")
 @ReportAsSingleViolation
 public @interface Iban {
     String message() default "IBAN non valido";

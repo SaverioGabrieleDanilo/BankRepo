@@ -7,8 +7,10 @@ import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
+import com.banca.gestionale_banca.shared.security.AuditLogger;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.shared.security.SecurityConfig;
+import com.banca.gestionale_banca.transaction.service.TransactionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * le richieste lungo tutta la catena HTTP (non solo a livello di service).
  */
 @WebMvcTest(BankAccountController.class)
-@Import({SecurityConfig.class, AuthorizationFacade.class})
+@Import({SecurityConfig.class, AuthorizationFacade.class, AuditLogger.class})
 class BankAccountControllerTest {
 
     @Autowired
@@ -52,6 +54,9 @@ class BankAccountControllerTest {
 
     @MockitoBean
     private AccountLimitsService accountLimitsService;
+
+    @MockitoBean
+    private TransactionService transactionService;
 
     private BankAccountResponse contoResponse() {
         return BankAccountResponse.builder().id(1L).iban("IT60X0542811101000000123456").build();
@@ -86,7 +91,7 @@ class BankAccountControllerTest {
         when(bankAccountService.approvaConto(eq(1L), eq(true))).thenReturn(contoResponse());
 
         ApproveAccountRequest request = new ApproveAccountRequest();
-        request.setApprova(true);
+        request.setApproved(true);
 
         mockMvc.perform(patch("/api/conti/1/approve")
                         .with(jwt().jwt(j -> j.subject("employee-id"))
@@ -99,7 +104,7 @@ class BankAccountControllerTest {
     @Test
     void approvaConto_conRuoloCustomer_e403() throws Exception {
         ApproveAccountRequest request = new ApproveAccountRequest();
-        request.setApprova(true);
+        request.setApproved(true);
 
         mockMvc.perform(patch("/api/conti/1/approve")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
@@ -120,10 +125,78 @@ class BankAccountControllerTest {
     }
 
     @Test
-    void chiudiConto_conRuoloEmployee_e403() throws Exception {
+    void chiudiConto_conRuoloEmployee_e200() throws Exception {
+        when(bankAccountService.chiudiConto(eq(1L), any(), anyBoolean())).thenReturn(contoResponse());
+
         mockMvc.perform(post("/api/conti/1/chiusura")
                         .with(jwt().jwt(j -> j.subject("employee-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void chiudiConto_senzaRuolo_e403() throws Exception {
+        mockMvc.perform(post("/api/conti/1/chiusura")
+                        .with(jwt().jwt(j -> j.subject("admin-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getConto_conRuoloCustomer_e200() throws Exception {
+        when(bankAccountService.getContoById(eq(1L), any(), anyBoolean())).thenReturn(contoResponse());
+
+        mockMvc.perform(get("/api/conti/1")
+                        .with(jwt().jwt(j -> j.subject("customer-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getConto_conRuoloEmployee_e200() throws Exception {
+        when(bankAccountService.getContoById(eq(1L), any(), anyBoolean())).thenReturn(contoResponse());
+
+        mockMvc.perform(get("/api/conti/1")
+                        .with(jwt().jwt(j -> j.subject("employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getConto_conRuoloAdmin_e403() throws Exception {
+        mockMvc.perform(get("/api/conti/1")
+                        .with(jwt().jwt(j -> j.subject("admin-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getTransazioniConto_conRuoloCustomer_e200() throws Exception {
+        Page<com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse> page = new PageImpl<>(List.of());
+        when(transactionService.getTransazioniByConto(eq(1L), any(), anyBoolean(), any())).thenReturn(page);
+
+        mockMvc.perform(get("/api/conti/1/transazioni")
+                        .with(jwt().jwt(j -> j.subject("customer-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getTransazioniConto_conRuoloEmployee_e200() throws Exception {
+        Page<com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse> page = new PageImpl<>(List.of());
+        when(transactionService.getTransazioniByConto(eq(1L), any(), anyBoolean(), any())).thenReturn(page);
+
+        mockMvc.perform(get("/api/conti/1/transazioni")
+                        .with(jwt().jwt(j -> j.subject("employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getTransazioniConto_conRuoloAdmin_e403() throws Exception {
+        mockMvc.perform(get("/api/conti/1/transazioni")
+                        .with(jwt().jwt(j -> j.subject("admin-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -135,6 +208,17 @@ class BankAccountControllerTest {
         mockMvc.perform(get("/api/conti")
                         .with(jwt().jwt(j -> j.subject("admin-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void listaConti_conRuoloEmployee_e200() throws Exception {
+        Page<BankAccountAdminResponse> page = new PageImpl<>(List.of());
+        when(bankAccountService.listaConti(any())).thenReturn(page);
+
+        mockMvc.perform(get("/api/conti")
+                        .with(jwt().jwt(j -> j.subject("employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
                 .andExpect(status().isOk());
     }
 
@@ -158,11 +242,25 @@ class BankAccountControllerTest {
     }
 
     @Test
-    void getLimiti_conRuoloAdmin_e403() throws Exception {
+    void getLimiti_conRuoloAdmin_e200() throws Exception {
+        when(accountLimitsService.getLimiti(eq(1L), any(), anyBoolean()))
+                .thenReturn(AccountLimitsResponse.builder().accountId(1L).build());
+
         mockMvc.perform(get("/api/conti/1/limits")
                         .with(jwt().jwt(j -> j.subject("admin-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void getLimiti_conRuoloEmployee_e200() throws Exception {
+        when(accountLimitsService.getLimiti(eq(1L), any(), anyBoolean()))
+                .thenReturn(AccountLimitsResponse.builder().accountId(1L).build());
+
+        mockMvc.perform(get("/api/conti/1/limits")
+                        .with(jwt().jwt(j -> j.subject("employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -172,7 +270,7 @@ class BankAccountControllerTest {
         request.setSingleTransactionLimit(java.math.BigDecimal.valueOf(500));
         request.setMonthlyTransferLimit(java.math.BigDecimal.valueOf(5000));
 
-        when(accountLimitsService.impostaLimiti(eq(1L), any()))
+        when(accountLimitsService.impostaLimiti(eq(1L), any(), any(), anyBoolean()))
                 .thenReturn(AccountLimitsResponse.builder().accountId(1L).build());
 
         mockMvc.perform(put("/api/conti/1/limits")
@@ -184,17 +282,38 @@ class BankAccountControllerTest {
     }
 
     @Test
-    void impostaLimiti_conRuoloCustomer_e403() throws Exception {
+    void impostaLimiti_conRuoloAdmin_e200() throws Exception {
         AccountLimitsRequest request = new AccountLimitsRequest();
         request.setDailyWithdrawalLimit(java.math.BigDecimal.valueOf(1000));
         request.setSingleTransactionLimit(java.math.BigDecimal.valueOf(500));
         request.setMonthlyTransferLimit(java.math.BigDecimal.valueOf(5000));
+
+        when(accountLimitsService.impostaLimiti(eq(1L), any(), any(), anyBoolean()))
+                .thenReturn(AccountLimitsResponse.builder().accountId(1L).build());
+
+        mockMvc.perform(put("/api/conti/1/limits")
+                        .with(jwt().jwt(j -> j.subject("admin-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void impostaLimiti_conRuoloCustomer_proprietario_e200() throws Exception {
+        AccountLimitsRequest request = new AccountLimitsRequest();
+        request.setDailyWithdrawalLimit(java.math.BigDecimal.valueOf(1000));
+        request.setSingleTransactionLimit(java.math.BigDecimal.valueOf(500));
+        request.setMonthlyTransferLimit(java.math.BigDecimal.valueOf(5000));
+
+        when(accountLimitsService.impostaLimiti(eq(1L), any(), any(), anyBoolean()))
+                .thenReturn(AccountLimitsResponse.builder().accountId(1L).build());
 
         mockMvc.perform(put("/api/conti/1/limits")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 }

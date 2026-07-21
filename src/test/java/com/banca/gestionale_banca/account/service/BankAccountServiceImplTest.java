@@ -6,8 +6,9 @@ import com.banca.gestionale_banca.account.repository.BankAccountRepository;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.account.model.AccountStatus;
 import com.banca.gestionale_banca.account.model.BankAccount;
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
+import com.banca.gestionale_banca.user.repository.UserRepository;
 import com.banca.gestionale_banca.user.service.UserService;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -34,20 +35,22 @@ class BankAccountServiceImplTest {
     private AccountStatusRepository accountStatusRepository;
     @Mock
     private UserService userService;
+    @Mock
+    private UserRepository userRepository;
 
     private BankAccountServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new BankAccountServiceImpl(bankAccountRepository, accountStatusRepository,
-                userService, new AuthorizationFacade());
+                userService, new AuthorizationFacade(), userRepository);
     }
 
     @Test
     void apriConto_creaContoConSaldoZeroEStatoInAttesa() {
-        Utente utente = new Utente();
-        utente.setKeycloakId("user-1");
-        when(userService.findByKeycloakId("user-1")).thenReturn(Optional.of(utente));
+        User user = new User();
+        user.setKeycloakId("user-1");
+        when(userService.findByKeycloakId("user-1")).thenReturn(Optional.of(user));
         when(accountStatusRepository.findByName("IN_ATTESA")).thenReturn(Optional.of(new AccountStatus("IN_ATTESA")));
         when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -59,41 +62,41 @@ class BankAccountServiceImplTest {
 
     @Test
     void chiudiConto_saldoDiversoDaZero_lanciaConflictException() {
-        Utente utente = new Utente();
-        utente.setKeycloakId("user-1");
+        User user = new User();
+        user.setKeycloakId("user-1");
 
-        BankAccount conto = new BankAccount();
-        conto.setUser(utente);
-        conto.setBalance(new BigDecimal("10.00"));
+        BankAccount account = new BankAccount();
+        account.setUser(user);
+        account.setBalance(new BigDecimal("10.00"));
 
-        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(conto));
+        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
 
         assertThrows(ConflictException.class, () -> service.chiudiConto(1L, "user-1", false));
     }
 
     @Test
     void chiudiConto_nonProprietario_lanciaForbidden() {
-        Utente utente = new Utente();
-        utente.setKeycloakId("user-1");
+        User user = new User();
+        user.setKeycloakId("user-1");
 
-        BankAccount conto = new BankAccount();
-        conto.setUser(utente);
-        conto.setBalance(BigDecimal.ZERO);
+        BankAccount account = new BankAccount();
+        account.setUser(user);
+        account.setBalance(BigDecimal.ZERO);
 
-        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(conto));
+        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.chiudiConto(1L, "un-altro-utente", false));
+                () -> service.chiudiConto(1L, "un-altro-user", false));
 
         assertEquals(403, ex.getStatusCode().value());
     }
 
     @Test
     void approvaConto_giaApprovato_lanciaConflictException() {
-        BankAccount conto = new BankAccount();
-        conto.setStatus(new AccountStatus("ATTIVO"));
+        BankAccount account = new BankAccount();
+        account.setStatus(new AccountStatus("ATTIVO"));
 
-        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(conto));
+        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
 
         assertThrows(ConflictException.class, () -> service.approvaConto(1L, true));
     }

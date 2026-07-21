@@ -1,6 +1,8 @@
 package com.banca.gestionale_banca.account.model;
 
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.account.constants.StatiConto;
+import com.banca.gestionale_banca.shared.exception.ConflictException;
+import com.banca.gestionale_banca.user.model.User;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -35,7 +37,7 @@ public class BankAccount {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private Utente user;
+    private User user;
 
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal balance = BigDecimal.ZERO;
@@ -46,7 +48,6 @@ public class BankAccount {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "status_id", nullable = false)
     private AccountStatus status;
-
 
     @Column(name = "opening_date", nullable = false)
     private LocalDateTime openingDate;
@@ -63,4 +64,19 @@ public class BankAccount {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    public void deposit(BigDecimal amount) {
+        this.balance = this.balance.add(amount);
+    }
+
+    public void withdraw(BigDecimal amount) {
+        if (this.balance.compareTo(amount) < 0) {
+            throw new ConflictException("Saldo insufficiente");
+        }
+        this.balance = this.balance.subtract(amount);
+    }
+
+    public boolean isActive() {
+        return StatiConto.ATTIVO.equals(this.getStatus().getName());
+    }
 }

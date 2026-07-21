@@ -1,6 +1,7 @@
 {
   "realm": "gestionale-banca",
   "enabled": true,
+  "loginTheme": "banca-theme",
   "sslRequired": "none",
   "registrationAllowed": false,
   "passwordPolicy": "length(8) and digits(1) and upperCase(1) and lowerCase(1) and specialChars(1) and notUsername",

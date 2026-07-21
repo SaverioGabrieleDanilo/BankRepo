@@ -8,6 +8,7 @@ import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.account.repository.AccountLimitsRepository;
 import com.banca.gestionale_banca.account.repository.BankAccountRepository;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
+import com.banca.gestionale_banca.transaction.repository.TransactionRepository;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,44 +23,47 @@ class AccountLimitsServiceImpl implements AccountLimitsService {
 
     private final AccountLimitsRepository accountLimitsRepository;
     private final BankAccountRepository bankAccountRepository;
+    private final TransactionRepository transactionRepository;
     private final AuthorizationFacade authorizationFacade;
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public AccountLimitsResponse getLimiti(Long accountId, String keycloakId, boolean isEmployee) {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
 
-        AccountLimits limiti = accountLimitsRepository.findByAccountId(accountId)
+        AccountLimits limits = accountLimitsRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Limiti non ancora configurati per questo conto"));
 
-        return toResponse(limiti);
+        return toResponseConDisponibilita(limits);
     }
 
     @Override
     @Transactional
-    public AccountLimitsResponse impostaLimiti(Long accountId, AccountLimitsRequest request) {
+    public AccountLimitsResponse impostaLimiti(Long accountId, AccountLimitsRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a modificare i massimali di questo conto");
+
         LocalDateTime now = LocalDateTime.now();
-        AccountLimits limiti = accountLimitsRepository.findByAccountId(accountId).orElseGet(AccountLimits::new);
+        AccountLimits limits = accountLimitsRepository.findByAccountId(accountId).orElseGet(AccountLimits::new);
 
-        if (limiti.getId() == null) {
-            limiti.setAccount(account);
-            limiti.setUser(account.getUser());
-            limiti.setCreatedAt(now);
+        if (limits.getId() == null) {
+            limits.setAccount(account);
+            limits.setUser(account.getUser());
+            limits.setCreatedAt(now);
         }
-        limiti.setDailyWithdrawalLimit(request.getDailyWithdrawalLimit());
-        limiti.setSingleTransactionLimit(request.getSingleTransactionLimit());
-        limiti.setMonthlyTransferLimit(request.getMonthlyTransferLimit());
-        limiti.setUpdatedAt(now);
+        limits.setDailyWithdrawalLimit(request.getDailyWithdrawalLimit());
+        limits.setSingleTransactionLimit(request.getSingleTransactionLimit());
+        limits.setMonthlyTransferLimit(request.getMonthlyTransferLimit());
+        limits.setUpdatedAt(now);
 
-        limiti = accountLimitsRepository.save(limiti);
+        limits = accountLimitsRepository.save(limits);
 
-        return toResponse(limiti);
+        return toResponse(limits);
     }
 
     @Override
@@ -67,13 +71,36 @@ class AccountLimitsServiceImpl implements AccountLimitsService {
         return accountLimitsRepository.findByAccountId(accountId).map(this::toResponse);
     }
 
-    private AccountLimitsResponse toResponse(AccountLimits limiti) {
+    private AccountLimitsResponse toResponse(AccountLimits limits) {
         return AccountLimitsResponse.builder()
-                .accountId(limiti.getAccount().getId())
-                .dailyWithdrawalLimit(limiti.getDailyWithdrawalLimit())
-                .singleTransactionLimit(limiti.getSingleTransactionLimit())
-                .monthlyTransferLimit(limiti.getMonthlyTransferLimit())
-                .updatedAt(limiti.getUpdatedAt())
+                .accountId(limits.getAccount().getId())
+                .dailyWithdrawalLimit(limits.getDailyWithdrawalLimit())
+                .singleTransactionLimit(limits.getSingleTransactionLimit())
+                .monthlyTransferLimit(limits.getMonthlyTransferLimit())
+                .updatedAt(limits.getUpdatedAt())
+                .build();
+    }
+
+    /**
+     * Come toResponse, ma con in aggiunta quanto già consumato oggi/questo mese
+     * (2 query in più) — usata solo per la GET esposta al cliente, non nel percorso
+     * caldo della validazione delle transazioni (verificaLimiti/findLimiti).
+     */
+    private AccountLimitsResponse toResponseConDisponibilita(AccountLimits limits) {
+        Long accountId = limits.getAccount().getId();
+        LocalDateTime dayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime dayEnd = dayStart.plusDays(1).minusNanos(1);
+        LocalDateTime monthStart = LocalDateTime.now().toLocalDate().withDayOfMonth(1).atStartOfDay();
+        LocalDateTime monthEnd = monthStart.plusMonths(1).minusNanos(1);
+
+        return AccountLimitsResponse.builder()
+                .accountId(accountId)
+                .dailyWithdrawalLimit(limits.getDailyWithdrawalLimit())
+                .singleTransactionLimit(limits.getSingleTransactionLimit())
+                .monthlyTransferLimit(limits.getMonthlyTransferLimit())
+                .dailyWithdrawalUsed(transactionRepository.sumDailyWithdrawalsByAccount(accountId, dayStart, dayEnd))
+                .monthlyTransferUsed(transactionRepository.sumMonthlyTransfersByAccount(accountId, monthStart, monthEnd))
+                .updatedAt(limits.getUpdatedAt())
                 .build();
     }
 }

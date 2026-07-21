@@ -12,13 +12,14 @@ import lombok.*;
 @Entity
 @Table(name = "users", indexes = {
     @Index(name = "idx_users_email", columnList = "email"),
-    @Index(name = "idx_users_username", columnList = "username")
+    @Index(name = "idx_users_username", columnList = "username"),
+    @Index(name = "idx_keycloak_id", columnList = "keycloak_id")
 })
 @Getter
 @Setter
 @NoArgsConstructor
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-public class Utente {
+public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,7 +43,7 @@ public class Utente {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "validated_by_id")
     @JsonIgnore
-    private Utente validatedBy;
+    private User validatedBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id", nullable = false)

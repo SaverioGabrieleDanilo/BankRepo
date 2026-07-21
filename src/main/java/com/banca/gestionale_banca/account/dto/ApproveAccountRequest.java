@@ -6,5 +6,5 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ApproveAccountRequest {
-    private boolean approva;
+    private boolean approved;
 }

@@ -75,12 +75,12 @@ public class KeycloakRealmInitializer implements CommandLineRunner {
 
     private void allineaBruteForceProtection(RealmResource realmResource) {
         RealmRepresentation realm = realmResource.toRepresentation();
-        boolean giaAllineato = Boolean.TRUE.equals(realm.isBruteForceProtected())
+        boolean alreadyAligned = Boolean.TRUE.equals(realm.isBruteForceProtected())
                 && Integer.valueOf(FAILURE_FACTOR).equals(realm.getFailureFactor())
                 && Integer.valueOf(WAIT_SECONDS).equals(realm.getWaitIncrementSeconds())
                 && Integer.valueOf(WAIT_SECONDS).equals(realm.getMaxFailureWaitSeconds());
 
-        if (!giaAllineato) {
+        if (!alreadyAligned) {
             realm.setBruteForceProtected(true);
             realm.setPermanentLockout(false);
             realm.setFailureFactor(FAILURE_FACTOR);

@@ -1,8 +1,11 @@
 package com.banca.gestionale_banca.transaction.service;
 
+import com.banca.gestionale_banca.account.repository.BankAccountRepository;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
+import com.banca.gestionale_banca.transaction.dto.DepositRequest;
 import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
+import com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
@@ -11,16 +14,25 @@ import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.account.model.BankAccount;
 import com.banca.gestionale_banca.transaction.constants.StatiTransazione;
 import com.banca.gestionale_banca.transaction.constants.TipiTransazione;
+import com.banca.gestionale_banca.transaction.model.DepositType;
 import com.banca.gestionale_banca.transaction.model.Transaction;
 import com.banca.gestionale_banca.transaction.model.TransactionStatus;
 import com.banca.gestionale_banca.transaction.model.TransactionType;
+import com.banca.gestionale_banca.transaction.repository.DepositTypeRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionStatusRepository;
 import com.banca.gestionale_banca.transaction.repository.TransactionTypeRepository;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
+import com.banca.gestionale_banca.user.model.User;
+import com.banca.gestionale_banca.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -30,31 +42,36 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
-class TransactionServiceImpl implements TransactionService {
+public class TransactionServiceImpl implements TransactionService {
 
-    private static final BigDecimal FEE_PERCENTAGE = new BigDecimal("0.02");
+    @Value("${app.transaction.fee-percentage}")
+    private BigDecimal feePercentage;
 
     private final BankAccountService bankAccountService;
+    private final BankAccountRepository bankAccountRepository;
     private final TransactionRepository transactionRepository;
     private final TransactionTypeRepository transactionTypeRepository;
     private final TransactionStatusRepository transactionStatusRepository;
+    private final DepositTypeRepository depositTypeRepository;
     private final AccountLimitsService accountLimitsService;
     private final AuthorizationFacade authorizationFacade;
+    private final UserService userService;
 
     @Override
     @Transactional
-    public TransactionResponse eseguiVersamento(TransactionRequest request, String keycloakId, boolean isEmployee) {
+    public TransactionResponse eseguiVersamento(DepositRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = trovaConto(request.getIban(), "Conto corrente non trovato");
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         bankAccountService.assertActive(account, "Il conto corrente non è attivo");
 
         TransactionType type = trovaTipo(TipiTransazione.VERSAMENTO);
         TransactionStatus status = trovaStatoEseguita();
+        DepositType depositType = trovaDepositType(request.getDepositType());
 
         account = bankAccountService.updateBalance(account, account.getBalance().add(request.getAmount()));
 
         Transaction transaction = registraMovimento(account, account, request.getAmount(),
-                request.getDescription(), type, status);
+                request.getDescription(), type, status, depositType, request.getItemsCount());
 
         return toResponse(transaction, account.getIban(), account.getBalance(), null);
     }
@@ -63,7 +80,7 @@ class TransactionServiceImpl implements TransactionService {
     @Transactional
     public TransactionResponse eseguiPrelievo(TransactionRequest request, String keycloakId, boolean isEmployee) {
         BankAccount account = trovaConto(request.getIban(), "Conto corrente non trovato");
-        authorizationFacade.verificaProprietario(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         bankAccountService.assertActive(account, "Il conto corrente non è attivo");
 
         if (account.getBalance().compareTo(request.getAmount()) < 0) {
@@ -78,7 +95,7 @@ class TransactionServiceImpl implements TransactionService {
         account = bankAccountService.updateBalance(account, account.getBalance().subtract(request.getAmount()));
 
         Transaction transaction = registraMovimento(account, account, request.getAmount(),
-                request.getDescription(), type, status);
+                request.getDescription(), type, status, null, null);
 
         return toResponse(transaction, account.getIban(), account.getBalance(), null);
     }
@@ -86,18 +103,18 @@ class TransactionServiceImpl implements TransactionService {
     @Override
     @Transactional
     public TransactionResponse eseguiBonifico(TransferRequest request, String keycloakId, boolean isEmployee) {
-        if(request.getSourceIban().equals(request.getTargetIban())){
+        if (request.getSourceIban().equals(request.getTargetIban())) {
             throw new ConflictException("Il conto di origine e quello di destinazione non possono coincidere");
         }
         Map<String, BankAccount> lockedAccounts = lockAccountsInOrder(request.getSourceIban(), request.getTargetIban());
         BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
         BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
 
-        authorizationFacade.verificaProprietario(sourceAccount.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
+        authorizationFacade.verifyOwnership(sourceAccount.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
         bankAccountService.assertActive(sourceAccount, "Il conto di origine non è attivo");
         bankAccountService.assertActive(targetAccount, "Il conto di destinazione non è attivo");
 
-        BigDecimal fee = request.getAmount().multiply(FEE_PERCENTAGE).setScale(2, RoundingMode.HALF_EVEN);
+        BigDecimal fee = request.getAmount().multiply(feePercentage).setScale(2, RoundingMode.HALF_EVEN);
         BigDecimal totalDebit = request.getAmount().add(fee);
 
         if (sourceAccount.getBalance().compareTo(totalDebit) < 0) {
@@ -113,7 +130,7 @@ class TransactionServiceImpl implements TransactionService {
         targetAccount = bankAccountService.updateBalance(targetAccount, targetAccount.getBalance().add(request.getAmount()));
 
         Transaction transaction = registraMovimento(sourceAccount, targetAccount, request.getAmount(),
-                request.getDescription() + " (Trattenuta: " + fee + "€)", type, status);
+                request.getDescription() + " (Trattenuta: " + fee + "€)", type, status, null, null);
 
         return toResponse(transaction, sourceAccount.getIban(), sourceAccount.getBalance(), fee);
     }
@@ -128,7 +145,7 @@ class TransactionServiceImpl implements TransactionService {
         BankAccount sourceAccount = lockedAccounts.get(request.getSourceIban());
         BankAccount targetAccount = lockedAccounts.get(request.getTargetIban());
 
-        authorizationFacade.verificaProprietario(sourceAccount.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
+        authorizationFacade.verifyOwnership(sourceAccount.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato ad operare su questo conto");
 
         if (!sourceAccount.getUser().getId().equals(targetAccount.getUser().getId())) {
             throw new ConflictException("Il giroconto è consentito solo tra conti dello stesso intestatario");
@@ -150,13 +167,13 @@ class TransactionServiceImpl implements TransactionService {
         targetAccount = bankAccountService.updateBalance(targetAccount, targetAccount.getBalance().add(request.getAmount()));
 
         Transaction transaction = registraMovimento(sourceAccount, targetAccount, request.getAmount(),
-                request.getDescription(), type, status);
+                request.getDescription(), type, status, null, null);
 
         return toResponse(transaction, sourceAccount.getIban(), sourceAccount.getBalance(), null);
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public TransactionResponse getTransazioneById(Long id) {
         Transaction tx = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transazione non trovata"));
@@ -164,8 +181,82 @@ class TransactionServiceImpl implements TransactionService {
         return toResponse(tx, tx.getPayerAccount().getIban(), tx.getPayerAccount().getBalance(), null);
     }
 
-    private BankAccount trovaConto(String iban, String messaggioSeNonTrovato) {
-        return bankAccountService.lockForUpdate(iban, messaggioSeNonTrovato);
+    @Override
+    public Page<TransactionAdminResponse> getTransazioniPaginate(Pageable pageable) {
+        return transactionRepository.findAllWithDetails(pageable).map(this::toAdminResponse);
+    }
+
+    @Override
+    public Page<TransactionAdminResponse> getTransazioniByConto(Long accountId, String keycloakId, boolean isEmployee, Pageable pageable) {
+        BankAccount account = bankAccountRepository.findByIdWithUser(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
+
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare le transazioni di questo conto");
+
+        return transactionRepository.findAllByAccountId(accountId, pageable).map(this::toAdminResponse);
+    }
+
+    @Override
+    public List<TransactionResponse> getUserTransactions(String keycloakId) {
+        User user = userService.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+
+        return transactionRepository.findAllByUserId(user.getId()).stream()
+                .map(tx -> {
+                    boolean isPayer = tx.getPayerUser().getId().equals(user.getId());
+                    String iban = isPayer ? tx.getPayerAccount().getIban() : tx.getPayeeAccount().getIban();
+
+                    BigDecimal fee = null;
+                    if (isPayer && TipiTransazione.BONIFICO.equals(tx.getType().getName())) {
+                        fee = tx.getAmount().multiply(feePercentage).setScale(2, RoundingMode.HALF_EVEN);
+                    }
+
+                    return toResponse(tx, iban, null, fee);
+                })
+                .toList();
+    }
+
+    @Override
+    public List<TransactionResponse> getTransazioniByIban(String iban, String keycloakId, boolean isEmployee) {
+        BankAccount account = bankAccountRepository.findByIbanWithUser(iban)
+                .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
+
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee,
+                "Non autorizzato a consultare le transazioni di questo conto");
+
+        return transactionRepository.findAllByIban(iban).stream()
+                .map(tx -> {
+                    boolean isPayer = tx.getPayerAccount().getIban().equals(iban);
+
+                    BigDecimal fee = null;
+                    if (isPayer && TipiTransazione.BONIFICO.equals(tx.getType().getName())) {
+                        fee = tx.getAmount().multiply(feePercentage).setScale(2, RoundingMode.HALF_EVEN);
+                    }
+
+                    return toResponse(tx, iban, null, fee);
+                })
+                .toList();
+    }
+
+    private TransactionAdminResponse toAdminResponse(Transaction tx) {
+        return TransactionAdminResponse.builder()
+                .id(tx.getId())
+                .type(tx.getType().getName())
+                .amount(tx.getAmount())
+                .status(tx.getStatus().getName())
+                .description(tx.getDescription())
+                .transactionDate(tx.getTransactionDate())
+                .payerIban(tx.getPayerAccount().getIban())
+                .payerUsername(tx.getPayerUser().getUsername())
+                .payerFullName(tx.getPayerUser().getFirstName() + " " + tx.getPayerUser().getLastName())
+                .payeeIban(tx.getPayeeAccount().getIban())
+                .payeeUsername(tx.getPayeeUser().getUsername())
+                .payeeFullName(tx.getPayeeUser().getFirstName() + " " + tx.getPayeeUser().getLastName())
+                .build();
+    }
+
+    private BankAccount trovaConto(String iban, String messageIfNotFound) {
+        return bankAccountService.lockForUpdate(iban, messageIfNotFound);
     }
 
     /**
@@ -190,35 +281,40 @@ class TransactionServiceImpl implements TransactionService {
      * Un solo fetch di AccountLimits per operazione (prima veniva interrogato due volte:
      * una per il limite di singola transazione, una per quello giornaliero/mensile).
      */
-    private void verificaLimiti(BankAccount account, BigDecimal amount, boolean isPrelievo) {
-        accountLimitsService.findLimiti(account.getId()).ifPresent(limiti -> {
-            if (amount.compareTo(limiti.getSingleTransactionLimit()) > 0) {
+    private void verificaLimiti(BankAccount account, BigDecimal amount, boolean isWithdrawal) {
+        accountLimitsService.findLimiti(account.getId()).ifPresent(limits -> {
+            if (amount.compareTo(limits.getSingleTransactionLimit()) > 0) {
                 throw new ConflictException(
-                        "Importo superiore al limite per singola transazione consentito (" + limiti.getSingleTransactionLimit() + "€)");
+                        "Importo superiore al limite per singola transazione consentito (" + limits.getSingleTransactionLimit() + "€)");
             }
-            if (isPrelievo) {
+            if (isWithdrawal) {
                 LocalDateTime dayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
                 LocalDateTime dayEnd = dayStart.plusDays(1).minusNanos(1);
-                BigDecimal giaPrelevato = transactionRepository.sumDailyWithdrawalsByAccount(account.getId(), dayStart, dayEnd);
-                if (giaPrelevato.add(amount).compareTo(limiti.getDailyWithdrawalLimit()) > 0) {
+                BigDecimal alreadyWithdrawn = transactionRepository.sumDailyWithdrawalsByAccount(account.getId(), dayStart, dayEnd);
+                if (alreadyWithdrawn.add(amount).compareTo(limits.getDailyWithdrawalLimit()) > 0) {
                     throw new ConflictException("Limite giornaliero di prelievo superato (limite: "
-                            + limiti.getDailyWithdrawalLimit() + "€, già prelevato oggi: " + giaPrelevato + "€)");
+                            + limits.getDailyWithdrawalLimit() + "€, già prelevato oggi: " + alreadyWithdrawn + "€)");
                 }
             } else {
                 LocalDateTime monthStart = LocalDateTime.now().toLocalDate().withDayOfMonth(1).atStartOfDay();
                 LocalDateTime monthEnd = monthStart.plusMonths(1).minusNanos(1);
-                BigDecimal giaTrasferito = transactionRepository.sumMonthlyTransfersByAccount(account.getId(), monthStart, monthEnd);
-                if (giaTrasferito.add(amount).compareTo(limiti.getMonthlyTransferLimit()) > 0) {
+                BigDecimal alreadyTransferred = transactionRepository.sumMonthlyTransfersByAccount(account.getId(), monthStart, monthEnd);
+                if (alreadyTransferred.add(amount).compareTo(limits.getMonthlyTransferLimit()) > 0) {
                     throw new ConflictException("Limite mensile di trasferimento superato (limite: "
-                            + limiti.getMonthlyTransferLimit() + "€, già trasferito questo mese: " + giaTrasferito + "€)");
+                            + limits.getMonthlyTransferLimit() + "€, già trasferito questo mese: " + alreadyTransferred + "€)");
                 }
             }
         });
     }
 
-    private TransactionType trovaTipo(String nome) {
-        return transactionTypeRepository.findByName(nome)
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo transazione " + nome + " non configurato"));
+    private TransactionType trovaTipo(String name) {
+        return transactionTypeRepository.findByName(name)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo transazione " + name + " non configurato"));
+    }
+
+    private DepositType trovaDepositType(String name) {
+        return depositTypeRepository.findByName(name)
+                .orElseThrow(() -> new ResourceNotFoundException("Tipo deposito " + name + " non configurato"));
     }
 
     private TransactionStatus trovaStatoEseguita() {
@@ -227,7 +323,8 @@ class TransactionServiceImpl implements TransactionService {
     }
 
     private Transaction registraMovimento(BankAccount payer, BankAccount payee, BigDecimal amount,
-                                           String description, TransactionType type, TransactionStatus status) {
+                                           String description, TransactionType type, TransactionStatus status,
+                                           DepositType depositType, Integer itemsCount) {
         LocalDateTime now = LocalDateTime.now();
         Transaction transaction = new Transaction();
         transaction.setAmount(amount);
@@ -241,6 +338,8 @@ class TransactionServiceImpl implements TransactionService {
         transaction.setPayeeUser(payee.getUser());
         transaction.setType(type);
         transaction.setStatus(status);
+        transaction.setDepositType(depositType);
+        transaction.setItemsCount(itemsCount);
         return transactionRepository.save(transaction);
     }
 
@@ -254,6 +353,8 @@ class TransactionServiceImpl implements TransactionService {
                 .updatedBalance(updatedBalance)
                 .status(tx.getStatus().getName())
                 .timestamp(tx.getTransactionDate())
+                .depositType(tx.getDepositType() != null ? tx.getDepositType().getName() : null)
+                .itemsCount(tx.getItemsCount())
                 .build();
     }
 }

@@ -3,7 +3,7 @@ package com.banca.gestionale_banca.user.dto;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-import com.banca.gestionale_banca.user.model.Utente;
+import com.banca.gestionale_banca.user.model.User;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -18,11 +18,11 @@ public class UserResponse {
     private String lastName;
     private LocalDate dateOfBirth;
     private String role;
-    private String stato;
+    private String status;
     private String registrationStatus;
     private LocalDateTime createdAt;
 
-    public static UserResponse from(Utente u) {
+    public static UserResponse from(User u) {
         return UserResponse.builder()
                 .id(u.getId())
                 .username(u.getUsername())
@@ -31,7 +31,7 @@ public class UserResponse {
                 .lastName(u.getLastName())
                 .dateOfBirth(u.getDateOfBirth())
                 .role(u.getRole().getName())
-                .stato(u.getStatus().getName())
+                .status(u.getStatus().getName())
                 .registrationStatus(u.getRegistrationStatus().getName())
                 .createdAt(u.getCreatedAt())
                 .build();
