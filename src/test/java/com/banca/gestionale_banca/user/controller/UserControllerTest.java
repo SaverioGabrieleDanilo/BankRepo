@@ -64,7 +64,7 @@ class UserControllerTest {
         u.setFirstName("Mario");
         u.setLastName("Rossi");
         u.setRole(new Role("CUSTOMER"));
-        u.setStatus(new UserStatus("ATTIVO"));
+        u.setStatus(new UserStatus("ACTIVE"));
         u.setRegistrationStatus(new RegistrationStatus("APPROVED"));
         return u;
     }

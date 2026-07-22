@@ -27,6 +27,7 @@ import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.repository.UserRepository;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.user.service.UserService;
+import com.banca.gestionale_banca.utils.IbanGenerator;
 
 @Service
 @RequiredArgsConstructor
@@ -49,8 +50,9 @@ class BankAccountServiceImpl implements BankAccountService {
                                                 "Account status PENDING not configured"));
 
                 LocalDateTime now = LocalDateTime.now();
+                String newIban = IbanGenerator.generateItalianIban();
                 BankAccount account = new BankAccount();
-                account.setIban(generateIban());
+                account.setIban(newIban);
                 account.setUser(user);
                 account.setBalance(BigDecimal.ZERO);
                 account.setContableBalance(BigDecimal.ZERO);

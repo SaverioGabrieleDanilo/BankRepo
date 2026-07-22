@@ -10,6 +10,6 @@ import lombok.Setter;
 public class UserStatusRequest {
 
     @NotBlank
-    @Pattern(regexp = "ATTIVO|SOSPESO|CHIUSO", message = "Stato utente non valido")
+    @Pattern(regexp = "ACTIVE|SUSPENDED|CLOSED", message = "Stato utente non valido")
     private String status;
 }
