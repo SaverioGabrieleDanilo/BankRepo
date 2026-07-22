@@ -76,7 +76,7 @@ class UserControllerTest {
         UpdateUserRequest request = new UpdateUserRequest();
         request.setRole("ADMIN");
 
-        mockMvc.perform(put("/api/utenti/1")
+        mockMvc.perform(put("/api/users/1")
                         .with(jwt().jwt(j -> j.subject("customer-keycloak-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -94,7 +94,7 @@ class UserControllerTest {
         UpdateUserRequest request = new UpdateUserRequest();
         request.setEmail("nuova@email.it");
 
-        mockMvc.perform(put("/api/utenti/1")
+        mockMvc.perform(put("/api/users/1")
                         .with(jwt().jwt(j -> j.subject("customer-keycloak-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -112,7 +112,7 @@ class UserControllerTest {
         UpdateUserRequest request = new UpdateUserRequest();
         request.setRole("EMPLOYEE");
 
-        mockMvc.perform(put("/api/utenti/1")
+        mockMvc.perform(put("/api/users/1")
                         .with(jwt().jwt(j -> j.subject("admin-keycloak-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -126,7 +126,7 @@ class UserControllerTest {
     void owner_leggeIlProprioProfilo_e200() throws Exception {
         when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
 
-        mockMvc.perform(get("/api/utenti/1")
+        mockMvc.perform(get("/api/users/1")
                         .with(jwt().jwt(j -> j.subject("customer-keycloak-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
                 .andExpect(status().isOk());
@@ -136,7 +136,7 @@ class UserControllerTest {
     void employee_leggeIlProprioProfilo_e200() throws Exception {
         when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
 
-        mockMvc.perform(get("/api/utenti/1")
+        mockMvc.perform(get("/api/users/1")
                         .with(jwt().jwt(j -> j.subject("customer-keycloak-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
                 .andExpect(status().isOk());
@@ -146,7 +146,7 @@ class UserControllerTest {
     void admin_leggeProfiloDiUnAltroUtente_e200() throws Exception {
         when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
 
-        mockMvc.perform(get("/api/utenti/1")
+        mockMvc.perform(get("/api/users/1")
                         .with(jwt().jwt(j -> j.subject("admin-keycloak-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk());
@@ -156,7 +156,7 @@ class UserControllerTest {
     void employee_leggeProfiloDiUnAltroUtente_e200() throws Exception {
         when(userService.findById(1L)).thenReturn(Optional.of(contoCustomerCompleto()));
 
-        mockMvc.perform(get("/api/utenti/1")
+        mockMvc.perform(get("/api/users/1")
                         .with(jwt().jwt(j -> j.subject("un-altro-employee-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
                 .andExpect(status().isOk());
@@ -166,7 +166,7 @@ class UserControllerTest {
     void nonOwnerNonAdmin_leggeProfiloAltrui_vieneRifiutatoCon403() throws Exception {
         when(userService.findById(1L)).thenReturn(Optional.of(contoCustomer()));
 
-        mockMvc.perform(get("/api/utenti/1")
+        mockMvc.perform(get("/api/users/1")
                         .with(jwt().jwt(j -> j.subject("un-altro-customer-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
                 .andExpect(status().isForbidden());
@@ -176,7 +176,7 @@ class UserControllerTest {
     void listaUtenti_conRuoloAdmin_e200() throws Exception {
         when(userService.getPaginatedUsers(any(), any())).thenReturn(new PageImpl<>(List.of()));
 
-        mockMvc.perform(get("/api/utenti")
+        mockMvc.perform(get("/api/users")
                         .with(jwt().jwt(j -> j.subject("admin-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk());
@@ -186,7 +186,7 @@ class UserControllerTest {
     void listaUtenti_conRuoloEmployee_e200() throws Exception {
         when(userService.getPaginatedUsers(any(), any())).thenReturn(new PageImpl<>(List.of()));
 
-        mockMvc.perform(get("/api/utenti")
+        mockMvc.perform(get("/api/users")
                         .with(jwt().jwt(j -> j.subject("employee-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE"))))
                 .andExpect(status().isOk());
@@ -194,7 +194,7 @@ class UserControllerTest {
 
     @Test
     void listaUtenti_conRuoloCustomer_e403() throws Exception {
-        mockMvc.perform(get("/api/utenti")
+        mockMvc.perform(get("/api/users")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
                 .andExpect(status().isForbidden());
