@@ -336,9 +336,9 @@ class BankAccountControllerTest {
     @Test
     void cambiaStatoConto_conRuoloEmployee_e200() throws Exception {
         AccountStatusRequest request = new AccountStatusRequest();
-        request.setStatus("CHIUSO");
+        request.setStatus("CLOSED");
 
-        when(bankAccountService.changeBankAccountStatus(eq(1L), eq("CHIUSO"))).thenReturn(contoResponse());
+        when(bankAccountService.changeBankAccountStatus(eq(1L), eq("CLOSED"))).thenReturn(contoResponse());
 
         mockMvc.perform(patch("/api/bank-accounts/1/status")
                         .with(jwt().jwt(j -> j.subject("employee-id"))
@@ -351,9 +351,9 @@ class BankAccountControllerTest {
     @Test
     void cambiaStatoConto_conRuoloAdmin_e200() throws Exception {
         AccountStatusRequest request = new AccountStatusRequest();
-        request.setStatus("ATTIVO");
+        request.setStatus("ACTIVE");
 
-        when(bankAccountService.changeBankAccountStatus(eq(1L), eq("ATTIVO"))).thenReturn(contoResponse());
+        when(bankAccountService.changeBankAccountStatus(eq(1L), eq("ACTIVE"))).thenReturn(contoResponse());
 
         mockMvc.perform(patch("/api/bank-accounts/1/status")
                         .with(jwt().jwt(j -> j.subject("admin-id"))
@@ -366,7 +366,7 @@ class BankAccountControllerTest {
     @Test
     void cambiaStatoConto_conRuoloCustomer_e403() throws Exception {
         AccountStatusRequest request = new AccountStatusRequest();
-        request.setStatus("CHIUSO");
+        request.setStatus("CLOSED");
 
         mockMvc.perform(patch("/api/bank-accounts/1/status")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
