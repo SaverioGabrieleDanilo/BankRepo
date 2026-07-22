@@ -73,7 +73,7 @@ class TransactionServiceImplTest {
                 Optional.of(new TransactionType(invocation.getArgument(0))));
         lenient().when(depositTypeRepository.findByName(any())).thenAnswer(invocation ->
                 Optional.of(new DepositType(invocation.getArgument(0))));
-        lenient().when(transactionStatusRepository.findByName("ESEGUITA")).thenReturn(Optional.of(new TransactionStatus("ESEGUITA")));
+        lenient().when(transactionStatusRepository.findByName("EXECUTED")).thenReturn(Optional.of(new TransactionStatus("EXECUTED")));
         lenient().when(accountLimitsService.findLimits(any())).thenReturn(Optional.empty());
         lenient().doAnswer(invocation -> null).when(bankAccountService).assertActive(any(), any());
         lenient().when(bankAccountService.updateBalance(any(), any())).thenAnswer(invocation -> {
@@ -205,7 +205,7 @@ class TransactionServiceImplTest {
         tx.setId(99L);
         tx.setAmount(new BigDecimal("100.00"));
         tx.setType(new TransactionType(com.banca.gestionale_banca.transaction.constants.TransactionTypeEnum.TRANSFER));
-        tx.setStatus(new TransactionStatus("ESEGUITA"));
+        tx.setStatus(new TransactionStatus("EXECUTED"));
         tx.setPayerAccount(payerAccount);
         tx.setPayeeAccount(payeeAccount);
         tx.setPayerUser(payer);
