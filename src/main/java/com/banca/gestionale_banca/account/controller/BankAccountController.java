@@ -129,7 +129,7 @@ public class BankAccountController {
             Authentication authentication) {
 
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(transactionService.getTransazioniByConto(id, jwt.getSubject(),
+        return ResponseEntity.ok(transactionService.getTransactionsByAccount(id, jwt.getSubject(),
                 authorizationFacade.isEmployee(authentication), pageable));
     }
 

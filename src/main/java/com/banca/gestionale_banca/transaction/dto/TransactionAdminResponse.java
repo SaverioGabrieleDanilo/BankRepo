@@ -2,7 +2,6 @@ package com.banca.gestionale_banca.transaction.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-
 import lombok.Builder;
 import lombok.Getter;
 
