@@ -78,7 +78,7 @@ class AccountLimitsServiceImplTest {
         when(accountLimitsRepository.findByAccountId(1L)).thenReturn(Optional.of(limitiPer(account)));
         when(transactionRepository.sumDailyWithdrawalsByAccount(eq(1L), any(), any())).thenReturn(new BigDecimal("100.00"));
 
-        AccountLimitsResponse response = service.getLimiti(1L, "user-1", false);
+        AccountLimitsResponse response = service.getBankAccountLimits(1L, "user-1", false);
 
         assertEquals(new BigDecimal("1000.00"), response.getDailyWithdrawalLimit());
         assertEquals(new BigDecimal("100.00"), response.getDailyWithdrawalUsed());
@@ -88,7 +88,7 @@ class AccountLimitsServiceImplTest {
     void getLimiti_contoInesistente_lanciaResourceNotFoundException() {
         when(bankAccountRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> service.getLimiti(1L, "user-1", false));
+        assertThrows(ResourceNotFoundException.class, () -> service.getBankAccountLimits(1L, "user-1", false));
     }
 
     @Test
@@ -97,7 +97,7 @@ class AccountLimitsServiceImplTest {
         when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.getLimiti(1L, "un-altro-utente", false));
+                () -> service.getBankAccountLimits(1L, "un-altro-utente", false));
 
         assertEquals(403, ex.getStatusCode().value());
     }
@@ -108,7 +108,7 @@ class AccountLimitsServiceImplTest {
         when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
         when(accountLimitsRepository.findByAccountId(1L)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> service.getLimiti(1L, "user-1", false));
+        assertThrows(ResourceNotFoundException.class, () -> service.getBankAccountLimits(1L, "user-1", false));
     }
 
     @Test
@@ -123,7 +123,7 @@ class AccountLimitsServiceImplTest {
         request.setSingleTransactionLimit(new BigDecimal("1000.00"));
         request.setMonthlyTransferLimit(new BigDecimal("8000.00"));
 
-        AccountLimitsResponse response = service.impostaLimiti(1L, request, "user-1", false);
+        AccountLimitsResponse response = service.setBankAccountLimits(1L, request, "user-1", false);
 
         assertEquals(new BigDecimal("2000.00"), response.getDailyWithdrawalLimit());
         verify(accountLimitsRepository).save(any());
@@ -139,7 +139,7 @@ class AccountLimitsServiceImplTest {
         request.setSingleTransactionLimit(new BigDecimal("1000.00"));
         request.setMonthlyTransferLimit(new BigDecimal("8000.00"));
 
-        assertThrows(ResponseStatusException.class, () -> service.impostaLimiti(1L, request, "un-altro-utente", false));
+        assertThrows(ResponseStatusException.class, () -> service.setBankAccountLimits(1L, request, "un-altro-utente", false));
     }
 
     @Test
@@ -147,7 +147,7 @@ class AccountLimitsServiceImplTest {
         BankAccount account = contoDi("user-1");
         when(accountLimitsRepository.findByAccountId(1L)).thenReturn(Optional.of(limitiPer(account)));
 
-        Optional<AccountLimitsResponse> result = service.findLimiti(1L);
+        Optional<AccountLimitsResponse> result = service.findLimits(1L);
 
         assertEquals(new BigDecimal("500.00"), result.orElseThrow().getSingleTransactionLimit());
     }
@@ -156,6 +156,6 @@ class AccountLimitsServiceImplTest {
     void findLimiti_assente_restituisceOptionalVuoto() {
         when(accountLimitsRepository.findByAccountId(1L)).thenReturn(Optional.empty());
 
-        assertEquals(Optional.empty(), service.findLimiti(1L));
+        assertEquals(Optional.empty(), service.findLimits(1L));
     }
 }

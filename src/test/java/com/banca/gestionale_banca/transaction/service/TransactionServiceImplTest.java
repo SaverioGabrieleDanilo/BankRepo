@@ -5,7 +5,7 @@ import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.account.dto.AccountLimitsResponse;
 import com.banca.gestionale_banca.transaction.dto.DepositRequest;
-import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
+import com.banca.gestionale_banca.transaction.dto.InternarlTransferRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.repository.DepositTypeRepository;
@@ -74,7 +74,7 @@ class TransactionServiceImplTest {
         lenient().when(depositTypeRepository.findByName(any())).thenAnswer(invocation ->
                 Optional.of(new DepositType(invocation.getArgument(0))));
         lenient().when(transactionStatusRepository.findByName("ESEGUITA")).thenReturn(Optional.of(new TransactionStatus("ESEGUITA")));
-        lenient().when(accountLimitsService.findLimiti(any())).thenReturn(Optional.empty());
+        lenient().when(accountLimitsService.findLimits(any())).thenReturn(Optional.empty());
         lenient().doAnswer(invocation -> null).when(bankAccountService).assertActive(any(), any());
         lenient().when(bankAccountService.updateBalance(any(), any())).thenAnswer(invocation -> {
             BankAccount account = invocation.getArgument(0);
@@ -109,7 +109,7 @@ class TransactionServiceImplTest {
         request.setDepositType("CASH");
         request.setItemsCount(1);
 
-        TransactionResponse response = service.eseguiVersamento(request, "user-1", false);
+        TransactionResponse response = service.executeDeposit(request, "user-1", false);
 
         assertEquals(new BigDecimal("150.00"), response.getUpdatedBalance());
     }
@@ -123,7 +123,7 @@ class TransactionServiceImplTest {
         request.setIban(account.getIban());
         request.setAmount(new BigDecimal("100.00"));
 
-        assertThrows(ConflictException.class, () -> service.eseguiPrelievo(request, "user-1", false));
+        assertThrows(ConflictException.class, () -> service.executeWithdrawal(request, "user-1", false));
     }
 
     @Test
@@ -135,7 +135,7 @@ class TransactionServiceImplTest {
         request.setIban("IT60X0000000000000000000099");
         request.setAmount(new BigDecimal("10.00"));
 
-        assertThrows(ResourceNotFoundException.class, () -> service.eseguiPrelievo(request, "user-1", false));
+        assertThrows(ResourceNotFoundException.class, () -> service.executeWithdrawal(request, "user-1", false));
     }
 
     @Test
@@ -146,13 +146,13 @@ class TransactionServiceImplTest {
         AccountLimitsResponse limits = AccountLimitsResponse.builder()
                 .singleTransactionLimit(new BigDecimal("100.00"))
                 .build();
-        when(accountLimitsService.findLimiti(any())).thenReturn(Optional.of(limits));
+        when(accountLimitsService.findLimits(any())).thenReturn(Optional.of(limits));
 
         TransactionRequest request = new TransactionRequest();
         request.setIban(account.getIban());
         request.setAmount(new BigDecimal("500.00"));
 
-        assertThrows(ConflictException.class, () -> service.eseguiPrelievo(request, "user-1", false));
+        assertThrows(ConflictException.class, () -> service.executeWithdrawal(request, "user-1", false));
     }
 
     @Test
@@ -166,12 +166,12 @@ class TransactionServiceImplTest {
         when(bankAccountService.lockForUpdate(eq(source.getIban()), any())).thenReturn(source);
         when(bankAccountService.lockForUpdate(eq(target.getIban()), any())).thenReturn(target);
 
-        GirocontoRequest request = new GirocontoRequest();
+        InternarlTransferRequest request = new InternarlTransferRequest();
         request.setSourceIban(source.getIban());
         request.setTargetIban(target.getIban());
         request.setAmount(new BigDecimal("50.00"));
 
-        assertThrows(ConflictException.class, () -> service.eseguiGiroconto(request, "user-1", false));
+        assertThrows(ConflictException.class, () -> service.executeAccountTransfer(request, "user-1", false));
     }
 
     @Test
@@ -187,7 +187,7 @@ class TransactionServiceImplTest {
 
         org.springframework.web.server.ResponseStatusException ex = assertThrows(
                 org.springframework.web.server.ResponseStatusException.class,
-                () -> service.eseguiVersamento(request, "un-altro-utente", false));
+                () -> service.executeDeposit(request, "un-altro-utente", false));
 
         assertEquals(403, ex.getStatusCode().value());
     }
@@ -204,7 +204,7 @@ class TransactionServiceImplTest {
         Transaction tx = new Transaction();
         tx.setId(99L);
         tx.setAmount(new BigDecimal("100.00"));
-        tx.setType(new TransactionType(com.banca.gestionale_banca.transaction.constants.TipiTransazione.BONIFICO));
+        tx.setType(new TransactionType(com.banca.gestionale_banca.transaction.constants.TransactionTypeEnum.TRANSFER));
         tx.setStatus(new TransactionStatus("ESEGUITA"));
         tx.setPayerAccount(payerAccount);
         tx.setPayeeAccount(payeeAccount);
