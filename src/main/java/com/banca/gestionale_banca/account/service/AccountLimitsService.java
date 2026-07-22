@@ -7,7 +7,7 @@ import java.util.Optional;
 
 public interface AccountLimitsService {
     AccountLimitsResponse getLimiti(Long accountId, String keycloakId, boolean isEmployee);
-    AccountLimitsResponse impostaLimiti(Long accountId, AccountLimitsRequest request);
+    AccountLimitsResponse impostaLimiti(Long accountId, AccountLimitsRequest request, String keycloakId, boolean isEmployee);
 
     /**
      * API interna ad uso di altre feature (es. transaction): lettura delle soglie

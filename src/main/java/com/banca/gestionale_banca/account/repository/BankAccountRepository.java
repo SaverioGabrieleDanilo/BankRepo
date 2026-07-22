@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,4 +31,15 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, Long> 
     @Query(value = "SELECT b FROM BankAccount b JOIN FETCH b.user JOIN FETCH b.status",
            countQuery = "SELECT COUNT(b) FROM BankAccount b")
     Page<BankAccount> findAllWithUser(Pageable pageable);
+
+    @Query("SELECT b FROM BankAccount b JOIN FETCH b.user JOIN FETCH b.status WHERE b.id = :id")
+    Optional<BankAccount> findByIdWithUser(@Param("id") Long id);
+
+    @Query("SELECT b FROM BankAccount b JOIN FETCH b.user JOIN FETCH b.status WHERE b.iban = :iban")
+    Optional<BankAccount> findByIbanWithUser(@Param("iban") String iban);
+
+    long countByStatus_Name(String statusName);
+
+    @Query("SELECT COALESCE(SUM(b.balance), 0) FROM BankAccount b WHERE b.status.name = :statusName")
+    BigDecimal sumBalanceByStatusName(@Param("statusName") String statusName);
 }

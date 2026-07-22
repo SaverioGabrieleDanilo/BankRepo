@@ -17,20 +17,25 @@ import com.banca.gestionale_banca.user.dto.RegisterRequest;
 import com.banca.gestionale_banca.user.dto.UpdateUserRequest;
 import com.banca.gestionale_banca.user.dto.UserResponse;
 import com.banca.gestionale_banca.user.dto.UserStatusRequest;
+import com.banca.gestionale_banca.user.dto.UserStatsResponse;
 import com.banca.gestionale_banca.user.dto.RegistrationStatusRequest;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
+import com.banca.gestionale_banca.shared.security.AuditLogger;
+import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.user.model.User;
 import com.banca.gestionale_banca.user.service.UserService;
 
 import jakarta.validation.Valid;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/utenti")
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
+    private final AuditLogger auditLogger;
+    private final AuthorizationFacade authorizationFacade;
 
     @PostMapping("/registra")
     public ResponseEntity<UserResponse> registerUser(@Valid @RequestBody RegisterRequest request) {
@@ -45,51 +50,52 @@ public class UserController {
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
-        return userService.findById(id)
-                .map(UserResponse::from)
-                .map(ResponseEntity::ok)
-                .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> getMyProfile(@AuthenticationPrincipal Jwt jwt) {
+        User user = userService.findByKeycloakIdWithDetails(jwt.getSubject())
+                .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
+        return ResponseEntity.ok(UserResponse.from(user));
     }
 
-    // @GetMapping("/{id}")
-    // public ResponseEntity<UserResponse> getUserById(@PathVariable Long id,
-    //         @AuthenticationPrincipal Jwt jwt,
-    //         Authentication authentication) {
-    //     Utente user = userService.findById(id)
-    //             .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+    @GetMapping("/{id}")
+    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id,
+                                                        @AuthenticationPrincipal Jwt jwt,
+                                                        Authentication authentication) {
+        User user = userService.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
 
-    //     boolean isAdmin = authentication.getAuthorities().stream()
-    //             .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-    //     boolean isOwner = jwt.getSubject().equals(user.getKeycloakId());
+        boolean isAdmin = authorizationFacade.isAdmin(authentication);
+        boolean isEmployee = authorizationFacade.isEmployee(authentication);
+        boolean isOwner = jwt.getSubject().equals(user.getKeycloakId());
 
-    //     if (!isAdmin && !isOwner) {
-    //         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato a consultare questo utente");
-    //     }
+        if (!isAdmin && !isEmployee && !isOwner) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Non autorizzato a consultare questo utente");
+        }
 
-    //     return ResponseEntity.ok(UserResponse.from(user));
-    // }
+        return ResponseEntity.ok(UserResponse.from(user));
+    }
+
+    @GetMapping("/stats")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
+    public ResponseEntity<UserStatsResponse> getStats() {
+        return ResponseEntity.ok(userService.getStats());
+    }
 
     @GetMapping("/check")
-    // @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<String> testRoute(@AuthenticationPrincipal Jwt jwt) {
-        // Estraiamo l'username dal token per confermare che Keycloak sta parlando con Spring
         String username = jwt.getClaimAsString("preferred_username");
-        
-        // Ritorniamo un messaggio di successo
         return ResponseEntity.ok("Connessione OK! Token valido per l'utente: " + username);
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     public ResponseEntity<Page<UserResponse>> getPaginatedUsers(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String status) {
 
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(userService.getPaginatedUsers(pageable).map(UserResponse::from));
+        return ResponseEntity.ok(userService.getPaginatedUsers(status, pageable).map(UserResponse::from));
     }
 
     @PutMapping("/{id}")
@@ -100,10 +106,9 @@ public class UserController {
             Authentication authentication) {
 
         User user = userService.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+                .orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
 
-        boolean isAdmin = authentication.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isAdmin = authorizationFacade.isAdmin(authentication);
         boolean isOwner = jwt.getSubject().equals(user.getKeycloakId());
 
         if (!isAdmin && request.getRole() != null) {
@@ -117,21 +122,28 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<Void> deactivateUser(@PathVariable Long id) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deactivateUser(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
         userService.deactivateUser(id);
+        auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "DISATTIVA_UTENTE", "utente", id);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<UserResponse> changeUserStatus(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request) {
-        return ResponseEntity.ok(UserResponse.from(userService.changeUserStatus(id, request.getStatus())));
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponse> changeUserStatus(@PathVariable Long id, @Valid @RequestBody UserStatusRequest request,
+                                                          @AuthenticationPrincipal Jwt jwt) {
+        UserResponse response = UserResponse.from(userService.changeUserStatus(id, request.getStatus()));
+        auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "CAMBIA_STATO_UTENTE", "utente", id);
+        return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/{id}/registration-status")
     @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
-    public ResponseEntity<UserResponse> changeRegistrationStatus(@PathVariable Long id, @Valid @RequestBody RegistrationStatusRequest request) {
-        return ResponseEntity.ok(UserResponse.from(userService.changeRegistrationStatus(id, request.getRegistrationStatus())));
+    public ResponseEntity<UserResponse> changeRegistrationStatus(@PathVariable Long id, @Valid @RequestBody RegistrationStatusRequest request,
+                                                                  @AuthenticationPrincipal Jwt jwt) {
+        UserResponse response = UserResponse.from(userService.changeRegistrationStatus(id, request.getRegistrationStatus()));
+        auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "CAMBIA_STATO_REGISTRAZIONE", "utente", id);
+        return ResponseEntity.ok(response);
     }
 }

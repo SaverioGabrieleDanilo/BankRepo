@@ -20,8 +20,9 @@ public class TransactionResponse {
     private String type;
     private BigDecimal amount;
     private BigDecimal fee;
-    // private BigDecimal updatedBalance;
+    private BigDecimal updatedBalance;
     private String status;
     private LocalDateTime timestamp;
-    private boolean incoming;
+    private String depositType;
+    private Integer itemsCount;
 }

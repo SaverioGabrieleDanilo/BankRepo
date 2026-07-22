@@ -12,6 +12,7 @@ public class BankAccountResponse {
     private Long id;
     private String iban;
     private BigDecimal balance;
+    private BigDecimal contableBalance;
     private String status;
     private LocalDateTime openingDate;
 }

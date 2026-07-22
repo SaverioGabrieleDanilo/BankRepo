@@ -3,6 +3,7 @@ package com.banca.gestionale_banca.account.service;
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
+import com.banca.gestionale_banca.account.dto.BankAccountStatsResponse;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.account.constants.StatiConto;
@@ -26,10 +27,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 @RequiredArgsConstructor
-public class BankAccountServiceImpl implements BankAccountService {
+class BankAccountServiceImpl implements BankAccountService {
 
     private final BankAccountRepository bankAccountRepository;
     private final AccountStatusRepository accountStatusRepository;
@@ -56,8 +58,6 @@ public class BankAccountServiceImpl implements BankAccountService {
         account.setOpeningDate(now);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
-        
-        // Qui il save() serve perché stiamo creando un NUOVO record
         account = bankAccountRepository.save(account);
 
         return toResponse(account);
@@ -79,9 +79,7 @@ public class BankAccountServiceImpl implements BankAccountService {
 
         account.setStatus(newStatus);
         account.setUpdatedAt(LocalDateTime.now());
-        
-        // Nessun bankAccountRepository.save(account) richiesto! 
-        // L'entità è gestita. JPA invierà l'UPDATE da solo a fine transazione.
+        account = bankAccountRepository.save(account);
 
         return toResponse(account);
     }
@@ -104,31 +102,53 @@ public class BankAccountServiceImpl implements BankAccountService {
 
         account.setStatus(closed);
         account.setUpdatedAt(LocalDateTime.now());
-        
-        // Anche qui, JPA gestirà l'UPDATE in automatico
+        account = bankAccountRepository.save(account);
 
         return toResponse(account);
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public Page<BankAccountAdminResponse> listaConti(Pageable pageable) {
-        return bankAccountRepository.findAllWithUser(pageable)
-                .map(account -> BankAccountAdminResponse.builder()
-                        .id(account.getId())
-                        .iban(account.getIban())
-                        .balance(account.getBalance())
-                        .status(account.getStatus().getName())
-                        .ownerId(account.getUser().getId())
-                        .ownerUsername(account.getUser().getUsername())
-                        .ownerFullName(account.getUser().getFirstName() + " " + account.getUser().getLastName())
-                        .build());
+    @Transactional
+    public BankAccountResponse changeAccountStatus(Long accountId, String statusName) {
+        BankAccount account = bankAccountRepository.findById(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
+
+        AccountStatus newStatus = accountStatusRepository.findByName(statusName)
+                .orElseThrow(() -> new ResourceNotFoundException("Stato conto '" + statusName + "' non valido"));
+
+        account.setStatus(newStatus);
+        account.setUpdatedAt(LocalDateTime.now());
+        account = bankAccountRepository.save(account);
+
+        return toResponse(account);
     }
 
     @Override
-    public BankAccount lockForUpdate(String iban, String messageIfNotFound) {
-        return bankAccountRepository.findByIbanForUpdate(iban)
-                .orElseThrow(() -> new ResourceNotFoundException(messageIfNotFound));
+    public BankAccountResponse getContoById(Long accountId, String keycloakId, boolean isEmployee) {
+        BankAccount account = bankAccountRepository.findByIdWithUser(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
+
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
+
+        return toResponse(account);
+    }
+
+    @Override
+    public List<BankAccountResponseDTO> getUserBankAccounts(String keycloakId) {
+        User user = userService.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+
+        return bankAccountRepository.findByUserId(user.getId()).stream()
+                .map(acc -> new BankAccountResponseDTO(
+                        acc.getId(),
+                        acc.getIban(),
+                        acc.getBalance(),
+                        acc.getContableBalance(),
+                        acc.getUser().getId(),
+                        acc.getStatus() != null ? acc.getStatus().getName() : null,
+                        acc.getOpeningDate(),
+                        acc.getCreatedAt()))
+                .toList();
     }
 
     @Override
@@ -153,10 +173,60 @@ public class BankAccountServiceImpl implements BankAccountService {
                 .toList();
     }
 
-    // --- METODI HELPER PRIVATI ---
+    @Override
+    @Transactional(readOnly = true)
+    public Page<BankAccountAdminResponse> listaConti(Pageable pageable) {
+        return bankAccountRepository.findAllWithUser(pageable)
+                .map(account -> BankAccountAdminResponse.builder()
+                        .id(account.getId())
+                        .iban(account.getIban())
+                        .balance(account.getBalance())
+                        .status(account.getStatus().getName())
+                        .ownerId(account.getUser().getId())
+                        .ownerUsername(account.getUser().getUsername())
+                        .ownerFullName(account.getUser().getFirstName() + " " + account.getUser().getLastName())
+                        .openingDate(account.getOpeningDate())
+                        .build());
+    }
+
+    @Override
+    public BankAccountStatsResponse getStats() {
+        return BankAccountStatsResponse.builder()
+                .pendingApprovals(bankAccountRepository.countByStatus_Name(StatiConto.IN_ATTESA))
+                .totalManagedAssets(bankAccountRepository.sumBalanceByStatusName(StatiConto.ATTIVO))
+                .build();
+    }
+
+    @Override
+    public BankAccount lockForUpdate(String iban, String messageIfNotFound) {
+        return bankAccountRepository.findByIbanForUpdate(iban)
+                .orElseThrow(() -> new ResourceNotFoundException(messageIfNotFound));
+    }
+
+    @Override
+    public void assertActive(BankAccount account, String messageIfNotActive) {
+        if (!StatiConto.ATTIVO.equals(account.getStatus().getName())) {
+            throw new ConflictException(messageIfNotActive);
+        }
+    }
+
+    @Override
+    @Transactional
+    public BankAccount updateBalance(BankAccount account, BigDecimal newBalance) {
+        account.setBalance(newBalance);
+        return bankAccountRepository.save(account);
+    }
 
     private String generaIban() {
-        return "IT" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase();
+        String countryCode = "IT";
+        String bban = UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase();
+
+        String rearranged = bban + countryCode + "00";
+        String numeric = rearranged.chars()
+                .mapToObj(c -> Character.isDigit(c) ? String.valueOf((char) c) : String.valueOf(c - 'A' + 10))
+                .collect(java.util.stream.Collectors.joining());
+        int checkDigits = 98 - new java.math.BigInteger(numeric).mod(java.math.BigInteger.valueOf(97)).intValue();
+        return String.format("%s%02d%s", countryCode, checkDigits, bban);
     }
 
     private BankAccountResponse toResponse(BankAccount account) {
@@ -164,6 +234,7 @@ public class BankAccountServiceImpl implements BankAccountService {
                 .id(account.getId())
                 .iban(account.getIban())
                 .balance(account.getBalance())
+                .contableBalance(account.getContableBalance())
                 .status(account.getStatus().getName())
                 .openingDate(account.getOpeningDate())
                 .build();

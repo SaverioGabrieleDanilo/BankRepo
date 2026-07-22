@@ -362,6 +362,20 @@ GET {{baseUrl}}/api/transactions/{{versamentoA.response.body.transactionId}}
 Authorization: Bearer {{loginAdmin.response.body.access_token}}
 
 
+### 5.7 [CUSTOMER1, proprietario] Estratto conto A — deve mostrare le 4 transazioni
+### fatte finora (versamento 5.1, prelievo 5.2, giroconto in uscita 5.3, bonifico in
+### uscita 5.4), più recenti prima.
+GET {{baseUrl}}/api/conti/{{openAccountA.response.body.id}}/transazioni?page=0&size=20
+Authorization: Bearer {{loginCustomer1.response.body.access_token}}
+
+
+### 5.8 [CUSTOMER2] TEST DI SICUREZZA — tentativo di consultare le transazioni del
+### conto A, di proprietà di CUSTOMER1. Deve rispondere 403 Forbidden ("Non
+### autorizzato a consultare le transazioni di questo conto").
+GET {{baseUrl}}/api/conti/{{openAccountA.response.body.id}}/transazioni
+Authorization: Bearer {{loginCustomer2.response.body.access_token}}
+
+
 ### =========================================================================
 ### 6. CHIUSURA CONTO
 ### =========================================================================

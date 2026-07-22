@@ -5,6 +5,7 @@ import com.banca.gestionale_banca.user.constants.StatiRegistrazione;
 import com.banca.gestionale_banca.user.constants.StatiUtente;
 import com.banca.gestionale_banca.user.dto.RegisterRequest;
 import com.banca.gestionale_banca.user.dto.UpdateUserRequest;
+import com.banca.gestionale_banca.user.dto.UserStatsResponse;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ExternalServiceException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
@@ -157,7 +158,7 @@ class UserServiceImpl implements UserService {
             if (keycloakId != null) {
                 try {
                     usersResource.get(keycloakId).remove();
-                    log.warn("Utente Keycloak {} rimosso dopo fallimento della registrazione locale", keycloakId);
+                    log.warn("User Keycloak {} rimosso dopo fallimento della registrazione locale", keycloakId);
                 } catch (Exception cleanupEx) {
                     log.error("Impossibile ripulire l'utente Keycloak orfano {}: {}", keycloakId, cleanupEx.getMessage());
                 }
@@ -186,8 +187,11 @@ class UserServiceImpl implements UserService {
     public Optional<User> findByKeycloakId(String keycloakId) { return userrepo.findByKeycloakId(keycloakId); }
 
     @Override
+    public Optional<User> findByKeycloakIdWithDetails(String keycloakId) { return userrepo.findByKeycloakIdWithDetails(keycloakId); }
+
+    @Override
     public User updateUser(Long id, UpdateUserRequest request) {
-        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
 
         // Risolve il ruolo PRIMA di qualunque chiamata Keycloak: se il ruolo richiesto
         // non esiste, deve fallire qui senza aver già sincronizzato l'email, altrimenti
@@ -204,6 +208,15 @@ class UserServiceImpl implements UserService {
             u.setEmail(request.getEmail());
             syncEmailToKeycloak(keycloakUser, request.getEmail());
         }
+        if (request.getFirstName() != null || request.getLastName() != null) {
+            if (request.getFirstName() != null) {
+                u.setFirstName(request.getFirstName());
+            }
+            if (request.getLastName() != null) {
+                u.setLastName(request.getLastName());
+            }
+            syncNameToKeycloak(keycloakUser, request.getFirstName(), request.getLastName());
+        }
         if (newRole != null) {
             u.setRole(newRole);
             syncRoleToKeycloak(keycloakUser, u.getKeycloakId(), newRole.getName());
@@ -213,7 +226,7 @@ class UserServiceImpl implements UserService {
         // rimpiazza le associazioni lazy con nuovi proxy legati a una sessione
         // già chiusa (niente @Transactional qui, vedi nota su creaUtente sopra:
         // evitiamo di tenere una connessione DB aperta durante l'I/O verso Keycloak).
-        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
     }
 
     @Override
@@ -223,7 +236,15 @@ class UserServiceImpl implements UserService {
 
     @Override
     public User changeUserStatus(Long id, String statusName) {
-        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
+
+        // Un utente ADMIN non puo' essere sospeso/bloccato (ne' riattivato) da questo
+        // endpoint, nemmeno da un altro ADMIN: protegge da lockout accidentali o abusi
+        // di potere tra amministratori. Gestione stato ADMIN solo via Keycloak diretto.
+        if (Ruoli.ADMIN.equals(u.getRole().getName())) {
+            throw new ConflictException("Non è possibile modificare lo stato di un utente ADMIN da questo pannello");
+        }
+
         UserStatus newStatus = userStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato '" + statusName + "' non valido"));
 
@@ -241,12 +262,12 @@ class UserServiceImpl implements UserService {
         userrepo.save(u);
         // Vedi nota in updateUser: ri-fetch con JOIN FETCH dopo il save
         // per evitare LazyInitializationException sull'entity restituita.
-        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
     }
 
     @Override
     public User changeRegistrationStatus(Long id, String statusName) {
-        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        User u = userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
         RegistrationStatus newStatus = registrationStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato di registrazione '" + statusName + "' non valido"));
 
@@ -254,12 +275,19 @@ class UserServiceImpl implements UserService {
         userrepo.save(u);
         // Vedi nota in updateUser: ri-fetch con JOIN FETCH dopo il save
         // per evitare LazyInitializationException sull'entity restituita.
-        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
+        return userrepo.findByIdWithDetails(id).orElseThrow(() -> new ResourceNotFoundException("User non trovato"));
     }
 
     @Override
-    public Page<User> getPaginatedUsers(Pageable pageable) {
-        return userrepo.findAllWithDetails(pageable);
+    public Page<User> getPaginatedUsers(String status, Pageable pageable) {
+        return userrepo.findAllWithDetails(status, pageable);
+    }
+
+    @Override
+    public UserStatsResponse getStats() {
+        return UserStatsResponse.builder()
+                .activeUsers(userrepo.countByStatus_Name(StatiUtente.ATTIVO))
+                .build();
     }
 
     // Crea solo le righe mancanti (non "solo se la tabella e' vuota"): un
@@ -302,6 +330,22 @@ class UserServiceImpl implements UserService {
         } catch (Exception e) {
             log.error("Impossibile aggiornare l'email su Keycloak: {}", e.getMessage());
             throw new ExternalServiceException("Impossibile aggiornare l'email su Keycloak", e);
+        }
+    }
+
+    private void syncNameToKeycloak(UserResource keycloakUser, String firstName, String lastName) {
+        try {
+            UserRepresentation rep = keycloakUser.toRepresentation();
+            if (firstName != null) {
+                rep.setFirstName(firstName);
+            }
+            if (lastName != null) {
+                rep.setLastName(lastName);
+            }
+            keycloakUser.update(rep);
+        } catch (Exception e) {
+            log.error("Impossibile aggiornare nome/cognome su Keycloak: {}", e.getMessage());
+            throw new ExternalServiceException("Impossibile aggiornare nome/cognome su Keycloak", e);
         }
     }
 

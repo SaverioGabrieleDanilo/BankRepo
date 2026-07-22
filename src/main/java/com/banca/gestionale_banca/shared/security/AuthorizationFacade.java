@@ -14,6 +14,11 @@ public class AuthorizationFacade {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_" + Ruoli.EMPLOYEE));
     }
 
+    public boolean isAdmin(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_" + Ruoli.ADMIN));
+    }
+
     public void verifyOwnership(String ownerKeycloakId, String keycloakId, boolean isEmployee, String messageIfNotAuthorized) {
         if (isEmployee) {
             return;
