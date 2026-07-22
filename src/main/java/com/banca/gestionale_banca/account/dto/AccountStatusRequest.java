@@ -10,6 +10,6 @@ import lombok.Setter;
 public class AccountStatusRequest {
 
     @NotBlank
-    @Pattern(regexp = "ATTIVO|IN_ATTESA|RIFIUTATO|CHIUSO", message = "Stato conto non valido")
+    @Pattern(regexp = "ACTIVE|PENDING|REJECTED|CLOSED", message = "Stato conto non valido")
     private String status;
 }

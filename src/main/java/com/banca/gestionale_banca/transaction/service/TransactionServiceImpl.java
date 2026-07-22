@@ -6,6 +6,7 @@ import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.transaction.dto.DepositRequest;
 import com.banca.gestionale_banca.transaction.dto.InternarlTransferRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse;
+import com.banca.gestionale_banca.transaction.dto.TransactionDetailsResponse;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
@@ -172,7 +173,7 @@ public class TransactionServiceImpl implements TransactionService {
         return toResponse(transaction, sourceAccount.getIban(), sourceAccount.getBalance(), null);
     }
 
-    @Override
+@Override
     @Transactional(readOnly = true)
     public TransactionResponse getTransactionById(Long id) {
         Transaction tx = transactionRepository.findById(id)

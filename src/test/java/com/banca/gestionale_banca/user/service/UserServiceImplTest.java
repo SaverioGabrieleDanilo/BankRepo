@@ -4,8 +4,8 @@ import com.banca.gestionale_banca.shared.constants.Ruoli;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ExternalServiceException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
-import com.banca.gestionale_banca.user.constants.StatiRegistrazione;
-import com.banca.gestionale_banca.user.constants.StatiUtente;
+import com.banca.gestionale_banca.user.constants.RegistrationStatuses;
+import com.banca.gestionale_banca.user.constants.UserStatuses;
 import com.banca.gestionale_banca.user.dto.RegisterRequest;
 import com.banca.gestionale_banca.user.dto.UpdateUserRequest;
 import com.banca.gestionale_banca.user.model.RegistrationStatus;
@@ -53,7 +53,7 @@ import static org.mockito.Mockito.when;
 class UserServiceImplTest {
 
     @Mock
-    private UserRepository userrepo;
+    private UserRepository userRepository;
     @Mock
     private Keycloak keycloak;
     @Mock
@@ -72,7 +72,7 @@ class UserServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new UserServiceImpl(userrepo, keycloak, roleRepository, userStatusRepository, registrationStatusRepository);
+        service = new UserServiceImpl(userRepository, keycloak, roleRepository, userStatusRepository, registrationStatusRepository);
 
         lenient().when(keycloak.realm("gestionale-banca")).thenReturn(realmResource);
         lenient().when(realmResource.users()).thenReturn(usersResource);
@@ -86,8 +86,8 @@ class UserServiceImplTest {
     void registerUser_successo_creaUtenteSuKeycloakEInLocale() {
         RegisterRequest request = richiestaValida();
 
-        when(userrepo.existsByUsername("mrossi")).thenReturn(false);
-        when(userrepo.existsByEmail("mario.rossi@example.com")).thenReturn(false);
+        when(userRepository.existsByUsername("mrossi")).thenReturn(false);
+        when(userRepository.existsByEmail("mario.rossi@example.com")).thenReturn(false);
         when(roleRepository.findByName(Ruoli.CUSTOMER)).thenReturn(Optional.of(new Role(Ruoli.CUSTOMER)));
 
         Response creationResponse = mock(Response.class);
@@ -109,9 +109,9 @@ class UserServiceImplTest {
         when(kcUserResource.roles()).thenReturn(roleMappingResource);
         when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
 
-        when(userStatusRepository.findByName(StatiUtente.ATTIVO)).thenReturn(Optional.of(new UserStatus(StatiUtente.ATTIVO)));
-        when(registrationStatusRepository.findByName(StatiRegistrazione.PENDING)).thenReturn(Optional.of(new RegistrationStatus(StatiRegistrazione.PENDING)));
-        when(userrepo.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userStatusRepository.findByName(UserStatuses.ACTIVE)).thenReturn(Optional.of(new UserStatus(UserStatuses.ACTIVE)));
+        when(registrationStatusRepository.findByName(RegistrationStatuses.PENDING)).thenReturn(Optional.of(new RegistrationStatus(RegistrationStatuses.PENDING)));
+        when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         User result = service.registerUser(request);
 
@@ -123,7 +123,7 @@ class UserServiceImplTest {
     @Test
     void registerUser_usernameGiaInUso_lanciaConflictExceptionSenzaChiamareKeycloak() {
         RegisterRequest request = richiestaValida();
-        when(userrepo.existsByUsername("mrossi")).thenReturn(true);
+        when(userRepository.existsByUsername("mrossi")).thenReturn(true);
 
         assertThrows(ConflictException.class, () -> service.registerUser(request));
 
@@ -133,8 +133,8 @@ class UserServiceImplTest {
     @Test
     void registerUser_realmInesistente_lanciaExternalServiceException() {
         RegisterRequest request = richiestaValida();
-        when(userrepo.existsByUsername("mrossi")).thenReturn(false);
-        when(userrepo.existsByEmail("mario.rossi@example.com")).thenReturn(false);
+        when(userRepository.existsByUsername("mrossi")).thenReturn(false);
+        when(userRepository.existsByEmail("mario.rossi@example.com")).thenReturn(false);
         when(roleRepository.findByName(Ruoli.CUSTOMER)).thenReturn(Optional.of(new Role(Ruoli.CUSTOMER)));
         when(realmResource.toRepresentation()).thenThrow(new NotFoundException());
 
@@ -146,8 +146,8 @@ class UserServiceImplTest {
     @Test
     void registerUser_ruoloNonAssegnabile_ripulisceUtenteOrfanoSuKeycloak() {
         RegisterRequest request = richiestaValida();
-        when(userrepo.existsByUsername("mrossi")).thenReturn(false);
-        when(userrepo.existsByEmail("mario.rossi@example.com")).thenReturn(false);
+        when(userRepository.existsByUsername("mrossi")).thenReturn(false);
+        when(userRepository.existsByEmail("mario.rossi@example.com")).thenReturn(false);
         when(roleRepository.findByName(Ruoli.CUSTOMER)).thenReturn(Optional.of(new Role(Ruoli.CUSTOMER)));
 
         Response creationResponse = mock(Response.class);
@@ -173,7 +173,7 @@ class UserServiceImplTest {
         User existing = new User();
         existing.setId(1L);
         existing.setKeycloakId("kc-1");
-        when(userrepo.findByIdWithDetails(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(existing));
         when(roleRepository.findByName("BOH")).thenReturn(Optional.empty());
 
         UpdateUserRequest request = new UpdateUserRequest();
@@ -189,9 +189,9 @@ class UserServiceImplTest {
         User admin = new User();
         admin.setId(1L);
         admin.setRole(new Role(Ruoli.ADMIN));
-        when(userrepo.findByIdWithDetails(1L)).thenReturn(Optional.of(admin));
+        when(userRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(admin));
 
-        assertThrows(ConflictException.class, () -> service.changeUserStatus(1L, StatiUtente.SOSPESO));
+        assertThrows(ConflictException.class, () -> service.changeUserStatus(1L, UserStatuses.SUSPENDED));
 
         verify(keycloak, never()).realm(any());
     }

@@ -29,7 +29,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query(value = "SELECT u FROM User u JOIN FETCH u.role JOIN FETCH u.status JOIN FETCH u.registrationStatus " +
            "WHERE (:status IS NULL OR u.status.name = :status) " +
-           "ORDER BY CASE u.status.name WHEN 'ATTIVO' THEN 0 WHEN 'SOSPESO' THEN 1 WHEN 'CHIUSO' THEN 2 ELSE 3 END, " +
+           "ORDER BY CASE u.status.name WHEN 'ACTIVE' THEN 0 WHEN 'SUSPENDED' THEN 1 WHEN 'CLOSED' THEN 2 ELSE 3 END, " +
            "u.firstName, u.lastName",
            countQuery = "SELECT COUNT(u) FROM User u WHERE (:status IS NULL OR u.status.name = :status)")
     Page<User> findAllWithDetails(@Param("status") String status, Pageable pageable);
