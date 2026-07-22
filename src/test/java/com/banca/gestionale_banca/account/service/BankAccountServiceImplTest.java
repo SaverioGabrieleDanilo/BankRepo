@@ -100,4 +100,46 @@ class BankAccountServiceImplTest {
 
         assertThrows(ConflictException.class, () -> service.approvaConto(1L, true));
     }
+
+    @Test
+    void changeAccountStatus_chiusuraConSaldoDiversoDaZero_lanciaConflictException() {
+        BankAccount account = new BankAccount();
+        account.setStatus(new AccountStatus("ATTIVO"));
+        account.setBalance(new BigDecimal("10.00"));
+
+        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
+        when(accountStatusRepository.findByName("CHIUSO")).thenReturn(Optional.of(new AccountStatus("CHIUSO")));
+
+        assertThrows(ConflictException.class, () -> service.changeAccountStatus(1L, "CHIUSO"));
+    }
+
+    @Test
+    void changeAccountStatus_chiusuraConSaldoZero_aggiornaStato() {
+        BankAccount account = new BankAccount();
+        account.setStatus(new AccountStatus("ATTIVO"));
+        account.setBalance(BigDecimal.ZERO);
+
+        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
+        when(accountStatusRepository.findByName("CHIUSO")).thenReturn(Optional.of(new AccountStatus("CHIUSO")));
+        when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BankAccountResponse response = service.changeAccountStatus(1L, "CHIUSO");
+
+        assertEquals("CHIUSO", response.getStatus());
+    }
+
+    @Test
+    void changeAccountStatus_riattivazione_nonRichiedeSaldoZero() {
+        BankAccount account = new BankAccount();
+        account.setStatus(new AccountStatus("CHIUSO"));
+        account.setBalance(BigDecimal.ZERO);
+
+        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
+        when(accountStatusRepository.findByName("ATTIVO")).thenReturn(Optional.of(new AccountStatus("ATTIVO")));
+        when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BankAccountResponse response = service.changeAccountStatus(1L, "ATTIVO");
+
+        assertEquals("ATTIVO", response.getStatus());
+    }
 }

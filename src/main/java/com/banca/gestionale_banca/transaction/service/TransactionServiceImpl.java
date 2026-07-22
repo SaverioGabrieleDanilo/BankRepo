@@ -182,11 +182,13 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<TransactionAdminResponse> getTransazioniPaginate(Pageable pageable) {
         return transactionRepository.findAllWithDetails(pageable).map(this::toAdminResponse);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<TransactionAdminResponse> getTransazioniByConto(Long accountId, String keycloakId, boolean isEmployee, Pageable pageable) {
         BankAccount account = bankAccountRepository.findByIdWithUser(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
@@ -197,6 +199,7 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<TransactionResponse> getUserTransactions(String keycloakId) {
         User user = userService.findByKeycloakId(keycloakId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
@@ -217,6 +220,7 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<TransactionResponse> getTransazioniByIban(String iban, String keycloakId, boolean isEmployee) {
         BankAccount account = bankAccountRepository.findByIbanWithUser(iban)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));

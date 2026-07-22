@@ -181,12 +181,15 @@ class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<User> findById(Long id) { return userrepo.findByIdWithDetails(id); }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<User> findByKeycloakId(String keycloakId) { return userrepo.findByKeycloakId(keycloakId); }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<User> findByKeycloakIdWithDetails(String keycloakId) { return userrepo.findByKeycloakIdWithDetails(keycloakId); }
 
     @Override
@@ -279,11 +282,13 @@ class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<User> getPaginatedUsers(String status, Pageable pageable) {
         return userrepo.findAllWithDetails(status, pageable);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public UserStatsResponse getStats() {
         return UserStatsResponse.builder()
                 .activeUsers(userrepo.countByStatus_Name(StatiUtente.ATTIVO))

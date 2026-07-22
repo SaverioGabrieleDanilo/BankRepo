@@ -2,6 +2,7 @@ package com.banca.gestionale_banca.account.controller;
 
 import com.banca.gestionale_banca.account.dto.AccountLimitsRequest;
 import com.banca.gestionale_banca.account.dto.AccountLimitsResponse;
+import com.banca.gestionale_banca.account.dto.AccountStatusRequest;
 import com.banca.gestionale_banca.account.dto.ApproveAccountRequest;
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
@@ -315,5 +316,76 @@ class BankAccountControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void impostaLimiti_conValoreOltreDecimalMax_e400() throws Exception {
+        AccountLimitsRequest request = new AccountLimitsRequest();
+        request.setDailyWithdrawalLimit(java.math.BigDecimal.valueOf(999999));
+        request.setSingleTransactionLimit(java.math.BigDecimal.valueOf(500));
+        request.setMonthlyTransferLimit(java.math.BigDecimal.valueOf(5000));
+
+        mockMvc.perform(put("/api/conti/1/limits")
+                        .with(jwt().jwt(j -> j.subject("customer-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void cambiaStatoConto_conRuoloEmployee_e200() throws Exception {
+        AccountStatusRequest request = new AccountStatusRequest();
+        request.setStatus("CHIUSO");
+
+        when(bankAccountService.changeAccountStatus(eq(1L), eq("CHIUSO"))).thenReturn(contoResponse());
+
+        mockMvc.perform(patch("/api/conti/1/status")
+                        .with(jwt().jwt(j -> j.subject("employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void cambiaStatoConto_conRuoloAdmin_e200() throws Exception {
+        AccountStatusRequest request = new AccountStatusRequest();
+        request.setStatus("ATTIVO");
+
+        when(bankAccountService.changeAccountStatus(eq(1L), eq("ATTIVO"))).thenReturn(contoResponse());
+
+        mockMvc.perform(patch("/api/conti/1/status")
+                        .with(jwt().jwt(j -> j.subject("admin-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void cambiaStatoConto_conRuoloCustomer_e403() throws Exception {
+        AccountStatusRequest request = new AccountStatusRequest();
+        request.setStatus("CHIUSO");
+
+        mockMvc.perform(patch("/api/conti/1/status")
+                        .with(jwt().jwt(j -> j.subject("customer-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void cambiaStatoConto_conStatoNonValido_e400() throws Exception {
+        AccountStatusRequest request = new AccountStatusRequest();
+        request.setStatus("BOH");
+
+        mockMvc.perform(patch("/api/conti/1/status")
+                        .with(jwt().jwt(j -> j.subject("employee-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 }

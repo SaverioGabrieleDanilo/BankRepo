@@ -2,7 +2,7 @@ package com.banca.gestionale_banca.account.service;
 
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
-import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
+import com.banca.gestionale_banca.account.dto.BankAccountSummaryResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountStatsResponse;
 import com.banca.gestionale_banca.shared.exception.ConflictException;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
@@ -116,6 +116,10 @@ class BankAccountServiceImpl implements BankAccountService {
         AccountStatus newStatus = accountStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato conto '" + statusName + "' non valido"));
 
+        if (StatiConto.CHIUSO.equals(statusName) && account.getBalance().compareTo(BigDecimal.ZERO) != 0) {
+            throw new ConflictException("Impossibile chiudere il conto: il saldo deve essere zero");
+        }
+
         account.setStatus(newStatus);
         account.setUpdatedAt(LocalDateTime.now());
         account = bankAccountRepository.save(account);
@@ -124,6 +128,7 @@ class BankAccountServiceImpl implements BankAccountService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BankAccountResponse getContoById(Long accountId, String keycloakId, boolean isEmployee) {
         BankAccount account = bankAccountRepository.findByIdWithUser(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
@@ -134,42 +139,26 @@ class BankAccountServiceImpl implements BankAccountService {
     }
 
     @Override
-    public List<BankAccountResponseDTO> getUserBankAccounts(String keycloakId) {
+    @Transactional(readOnly = true)
+    public List<BankAccountSummaryResponse> getUserBankAccounts(String keycloakId) {
         User user = userService.findByKeycloakId(keycloakId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utente non trovato"));
 
         return bankAccountRepository.findByUserId(user.getId()).stream()
-                .map(acc -> new BankAccountResponseDTO(
-                        acc.getId(),
-                        acc.getIban(),
-                        acc.getBalance(),
-                        acc.getContableBalance(),
-                        acc.getUser().getId(),
-                        acc.getStatus() != null ? acc.getStatus().getName() : null,
-                        acc.getOpeningDate(),
-                        acc.getCreatedAt()))
+                .map(this::toSummaryResponse)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<BankAccountResponseDTO> getUserBankAccountsByUsername(String username) {
+    public List<BankAccountSummaryResponse> getUserBankAccountsByUsername(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Utente non trovato con username: " + username));
 
         List<BankAccount> accounts = bankAccountRepository.findByUserId(user.getId());
 
         return accounts.stream()
-                .map(acc -> new BankAccountResponseDTO(
-                        acc.getId(),
-                        acc.getIban(),
-                        acc.getBalance(),
-                        acc.getContableBalance(),
-                        acc.getUser().getId(),
-                        acc.getStatus() != null ? acc.getStatus().getName() : null,
-                        acc.getOpeningDate(),
-                        acc.getCreatedAt()
-                ))
+                .map(this::toSummaryResponse)
                 .toList();
     }
 
@@ -190,6 +179,7 @@ class BankAccountServiceImpl implements BankAccountService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BankAccountStatsResponse getStats() {
         return BankAccountStatsResponse.builder()
                 .pendingApprovals(bankAccountRepository.countByStatus_Name(StatiConto.IN_ATTESA))
@@ -227,6 +217,19 @@ class BankAccountServiceImpl implements BankAccountService {
                 .collect(java.util.stream.Collectors.joining());
         int checkDigits = 98 - new java.math.BigInteger(numeric).mod(java.math.BigInteger.valueOf(97)).intValue();
         return String.format("%s%02d%s", countryCode, checkDigits, bban);
+    }
+
+    private BankAccountSummaryResponse toSummaryResponse(BankAccount account) {
+        return BankAccountSummaryResponse.builder()
+                .id(account.getId())
+                .iban(account.getIban())
+                .balance(account.getBalance())
+                .contableBalance(account.getContableBalance())
+                .userId(account.getUser().getId())
+                .statusName(account.getStatus() != null ? account.getStatus().getName() : null)
+                .openingDate(account.getOpeningDate())
+                .createdAt(account.getCreatedAt())
+                .build();
     }
 
     private BankAccountResponse toResponse(BankAccount account) {

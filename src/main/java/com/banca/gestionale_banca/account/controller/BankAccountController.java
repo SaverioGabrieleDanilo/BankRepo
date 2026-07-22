@@ -28,7 +28,7 @@ import com.banca.gestionale_banca.account.dto.AccountStatusRequest;
 import com.banca.gestionale_banca.account.dto.ApproveAccountRequest;
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
-import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
+import com.banca.gestionale_banca.account.dto.BankAccountSummaryResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountStatsResponse;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
@@ -114,7 +114,7 @@ public class BankAccountController {
 
     @GetMapping("/user-accounts")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<List<BankAccountResponseDTO>> getMyAccounts(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<List<BankAccountSummaryResponse>> getMyAccounts(@AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(bankAccountService.getUserBankAccounts(jwt.getSubject()));
     }
 

@@ -200,15 +200,16 @@ Collezioni pronte all'uso, con body reali e richieste concatenate
 |----------|--------|------|-------------|
 | `/api/utenti/registra` | POST | No | Registrazione self-service (ruolo sempre CUSTOMER) |
 | `/api/utenti/admin/crea` | POST | ADMIN | Crea utente con ruolo esplicito (ADMIN/EMPLOYEE/CUSTOMER) |
-| `/api/utenti/{id}` | GET | ADMIN | Dettaglio utente |
-| `/api/utenti` | GET | ADMIN | Lista paginata utenti |
+| `/api/utenti/{id}` | GET | ADMIN/EMPLOYEE o proprietario | Dettaglio utente |
+| `/api/utenti` | GET | ADMIN/EMPLOYEE | Lista paginata utenti |
 | `/api/utenti/{id}` | PUT | ADMIN o proprietario | Modifica utente (solo ADMIN può cambiare `role`) |
-| `/api/utenti/{id}` | DELETE | ADMIN/EMPLOYEE | Disattiva utente |
-| `/api/utenti/{id}/status` | PATCH | ADMIN/EMPLOYEE | Cambia stato utente (ATTIVO/SOSPESO/CHIUSO) |
+| `/api/utenti/{id}` | DELETE | ADMIN | Disattiva utente |
+| `/api/utenti/{id}/status` | PATCH | ADMIN | Cambia stato utente (ATTIVO/SOSPESO/CHIUSO) |
+| `/api/utenti/{id}/registration-status` | PATCH | ADMIN/EMPLOYEE | Cambia stato registrazione utente |
 | `/api/conti/apertura` | POST | EMPLOYEE/CUSTOMER | Apre un conto (stato iniziale IN_ATTESA) |
 | `/api/conti/{id}/approve` | PATCH | EMPLOYEE/ADMIN | Approva/rifiuta apertura conto |
 | `/api/conti/{id}/chiusura` | POST | CUSTOMER | Chiude un conto (richiede saldo zero) |
-| `/api/conti` | GET | ADMIN | Lista paginata conti |
+| `/api/conti` | GET | EMPLOYEE/ADMIN | Lista paginata conti |
 | `/api/conti/{id}/limits` | GET | CUSTOMER (proprietario) | Consulta i limiti operativi del conto |
 | `/api/conti/{id}/limits` | PUT | EMPLOYEE/ADMIN | Imposta i limiti operativi del conto |
 | `/api/transactions/versamento` | POST | EMPLOYEE/CUSTOMER | Versamento su un conto |

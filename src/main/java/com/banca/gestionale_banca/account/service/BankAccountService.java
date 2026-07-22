@@ -2,7 +2,7 @@ package com.banca.gestionale_banca.account.service;
 
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
-import com.banca.gestionale_banca.account.dto.BankAccountResponseDTO;
+import com.banca.gestionale_banca.account.dto.BankAccountSummaryResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountStatsResponse;
 import com.banca.gestionale_banca.account.model.BankAccount;
 
@@ -18,8 +18,8 @@ public interface BankAccountService {
     BankAccountResponse chiudiConto(Long accountId, String keycloakId, boolean isEmployee);
     BankAccountResponse changeAccountStatus(Long accountId, String statusName);
     BankAccountResponse getContoById(Long accountId, String keycloakId, boolean isEmployee);
-    List<BankAccountResponseDTO> getUserBankAccounts(String keycloakId);
-    List<BankAccountResponseDTO> getUserBankAccountsByUsername(String username);
+    List<BankAccountSummaryResponse> getUserBankAccounts(String keycloakId);
+    List<BankAccountSummaryResponse> getUserBankAccountsByUsername(String username);
     Page<BankAccountAdminResponse> listaConti(Pageable pageable);
 
     /** Conteggi aggregati per la dashboard admin (KPI), calcolati sull'intera tabella. */
