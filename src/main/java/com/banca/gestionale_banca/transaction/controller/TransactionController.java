@@ -15,11 +15,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
 import java.util.List;
 
 import com.banca.gestionale_banca.transaction.dto.DepositRequest;
-import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
+import com.banca.gestionale_banca.transaction.dto.InternarlTransferRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
@@ -39,26 +38,26 @@ public class TransactionController {
     private final AuthorizationFacade authorizationFacade;
     private final AuditLogger auditLogger;
 
-    @PostMapping("/versamento")
+    @PostMapping("/deposit")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
-    public ResponseEntity<TransactionResponse> versamento(@Valid @RequestBody DepositRequest request,
+    public ResponseEntity<TransactionResponse> executeDeposit(@Valid @RequestBody DepositRequest request,
                                                            @AuthenticationPrincipal Jwt jwt,
                                                            Authentication authentication) {
         boolean isEmployee = authorizationFacade.isEmployee(authentication);
-        TransactionResponse response = transactionService.eseguiVersamento(request, jwt.getSubject(), isEmployee);
+        TransactionResponse response = transactionService.executeDeposit(request, jwt.getSubject(), isEmployee);
         if (isEmployee) {
             auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "VERSAMENTO", "conto", request.getIban());
         }
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/prelievo")
+    @PostMapping("/withdraw")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
-    public ResponseEntity<TransactionResponse> prelievo(@Valid @RequestBody TransactionRequest request,
+    public ResponseEntity<TransactionResponse> executeWithdrawal(@Valid @RequestBody TransactionRequest request,
                                                          @AuthenticationPrincipal Jwt jwt,
                                                          Authentication authentication) {
         boolean isEmployee = authorizationFacade.isEmployee(authentication);
-        TransactionResponse response = transactionService.eseguiPrelievo(request, jwt.getSubject(), isEmployee);
+        TransactionResponse response = transactionService.executeWithdrawal(request, jwt.getSubject(), isEmployee);
         if (isEmployee) {
             auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "PRELIEVO", "conto", request.getIban());
         }
@@ -67,18 +66,18 @@ public class TransactionController {
 
     @PostMapping("/transfer")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<TransactionResponse> bonifico(@Valid @RequestBody TransferRequest request,
+    public ResponseEntity<TransactionResponse> executeTransfer(@Valid @RequestBody TransferRequest request,
                                                          @AuthenticationPrincipal Jwt jwt,
                                                          Authentication authentication) {
-        return ResponseEntity.ok(transactionService.eseguiBonifico(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+        return ResponseEntity.ok(transactionService.executeTransfer(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
-    @PostMapping("/giroconto")
+    @PostMapping("/internal-transfer")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<TransactionResponse> giroconto(@Valid @RequestBody GirocontoRequest request,
+    public ResponseEntity<TransactionResponse> executeAccountTransfer(@Valid @RequestBody InternarlTransferRequest request,
                                                           @AuthenticationPrincipal Jwt jwt,
                                                           Authentication authentication) {
-        return ResponseEntity.ok(transactionService.eseguiGiroconto(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+        return ResponseEntity.ok(transactionService.executeAccountTransfer(request, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
     @GetMapping("/user-transfers")
@@ -89,25 +88,25 @@ public class TransactionController {
 
     @GetMapping("/by-iban")
     @PreAuthorize("hasRole('CUSTOMER')")
-    public ResponseEntity<List<TransactionResponse>> getTransazioniByIban(@RequestParam String iban,
+    public ResponseEntity<List<TransactionResponse>>  getTransactionsByIban(@RequestParam String iban,
                                                                            @AuthenticationPrincipal Jwt jwt,
                                                                            Authentication authentication) {
-        return ResponseEntity.ok(transactionService.getTransazioniByIban(iban, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
+        return ResponseEntity.ok(transactionService.getTransactionsByIban(iban, jwt.getSubject(), authorizationFacade.isEmployee(authentication)));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
-    public ResponseEntity<TransactionResponse> getTransazione(@PathVariable Long id) {
-        return ResponseEntity.ok(transactionService.getTransazioneById(id));
+    public ResponseEntity<TransactionResponse> getTransactionById(@PathVariable Long id) {
+        return ResponseEntity.ok(transactionService.getTransactionById(id));
     }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
-    public ResponseEntity<Page<TransactionAdminResponse>> listaTransazioni(
+    public ResponseEntity<Page<TransactionAdminResponse>> getPaginatedTransactions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(transactionService.getTransazioniPaginate(pageable));
+        return ResponseEntity.ok(transactionService.getPaginatedTransactions(pageable));
     }
 }

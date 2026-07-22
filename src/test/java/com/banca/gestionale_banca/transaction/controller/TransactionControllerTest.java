@@ -4,7 +4,7 @@ import com.banca.gestionale_banca.shared.security.AuditLogger;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.shared.security.SecurityConfig;
 import com.banca.gestionale_banca.transaction.dto.DepositRequest;
-import com.banca.gestionale_banca.transaction.dto.GirocontoRequest;
+import com.banca.gestionale_banca.transaction.dto.InternarlTransferRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
@@ -76,8 +76,8 @@ class TransactionControllerTest {
         return request;
     }
 
-    private GirocontoRequest girocontoRequest() {
-        GirocontoRequest request = new GirocontoRequest();
+    private InternarlTransferRequest girocontoRequest() {
+        InternarlTransferRequest request = new InternarlTransferRequest();
         request.setSourceIban("IT1234567890ABCDEF0001");
         request.setTargetIban("IT1234567890ABCDEF0002");
         request.setAmount(BigDecimal.valueOf(100));
@@ -86,9 +86,9 @@ class TransactionControllerTest {
 
     @Test
     void versamento_conRuoloCustomer_e200() throws Exception {
-        when(transactionservice.eseguiVersamento(any(), any(), anyBoolean())).thenReturn(movimentoResponse());
+        when(transactionservice.executeDeposit(any(), any(), anyBoolean())).thenReturn(movimentoResponse());
 
-        mockMvc.perform(post("/api/transactions/versamento")
+        mockMvc.perform(post("/api/transactions/deposit")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -98,7 +98,7 @@ class TransactionControllerTest {
 
     @Test
     void versamento_conRuoloAdmin_e403() throws Exception {
-        mockMvc.perform(post("/api/transactions/versamento")
+        mockMvc.perform(post("/api/transactions/deposit")
                         .with(jwt().jwt(j -> j.subject("admin-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -108,7 +108,7 @@ class TransactionControllerTest {
 
     @Test
     void versamento_senzaAutenticazione_e401() throws Exception {
-        mockMvc.perform(post("/api/transactions/versamento")
+        mockMvc.perform(post("/api/transactions/deposit")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(depositoRequest())))
                 .andExpect(status().isUnauthorized());
@@ -116,9 +116,9 @@ class TransactionControllerTest {
 
     @Test
     void prelievo_conRuoloEmployee_e200() throws Exception {
-        when(transactionservice.eseguiPrelievo(any(), any(), anyBoolean())).thenReturn(movimentoResponse());
+        when(transactionservice.executeWithdrawal(any(), any(), anyBoolean())).thenReturn(movimentoResponse());
 
-        mockMvc.perform(post("/api/transactions/prelievo")
+        mockMvc.perform(post("/api/transactions/withdraw")
                         .with(jwt().jwt(j -> j.subject("employee-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_EMPLOYEE")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -128,7 +128,7 @@ class TransactionControllerTest {
 
     @Test
     void prelievo_conRuoloAdmin_e403() throws Exception {
-        mockMvc.perform(post("/api/transactions/prelievo")
+        mockMvc.perform(post("/api/transactions/withdraw")
                         .with(jwt().jwt(j -> j.subject("admin-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -138,7 +138,7 @@ class TransactionControllerTest {
 
     @Test
     void bonifico_conRuoloCustomer_e200() throws Exception {
-        when(transactionservice.eseguiBonifico(any(), any(), anyBoolean())).thenReturn(movimentoResponse());
+        when(transactionservice.executeTransfer(any(), any(), anyBoolean())).thenReturn(movimentoResponse());
 
         mockMvc.perform(post("/api/transactions/transfer")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
@@ -160,9 +160,9 @@ class TransactionControllerTest {
 
     @Test
     void giroconto_conRuoloCustomer_e200() throws Exception {
-        when(transactionservice.eseguiGiroconto(any(), any(), anyBoolean())).thenReturn(movimentoResponse());
+        when(transactionservice.executeAccountTransfer(any(), any(), anyBoolean())).thenReturn(movimentoResponse());
 
-        mockMvc.perform(post("/api/transactions/giroconto")
+        mockMvc.perform(post("/api/transactions/internal-transfer")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -172,7 +172,7 @@ class TransactionControllerTest {
 
     @Test
     void giroconto_conRuoloAdmin_e403() throws Exception {
-        mockMvc.perform(post("/api/transactions/giroconto")
+        mockMvc.perform(post("/api/transactions/internal-transfer")
                         .with(jwt().jwt(j -> j.subject("admin-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -182,7 +182,7 @@ class TransactionControllerTest {
 
     @Test
     void getTransazione_conRuoloEmployee_e200() throws Exception {
-        when(transactionservice.getTransazioneById(eq(1L))).thenReturn(movimentoResponse());
+        when(transactionservice.getTransactionById(eq(1L))).thenReturn(movimentoResponse());
 
         mockMvc.perform(get("/api/transactions/1")
                         .with(jwt().jwt(j -> j.subject("employee-id"))
@@ -200,7 +200,7 @@ class TransactionControllerTest {
 
     @Test
     void listaTransazioni_conRuoloEmployee_e200() throws Exception {
-        when(transactionservice.getTransazioniPaginate(any())).thenReturn(new PageImpl<>(List.of()));
+        when(transactionservice.getPaginatedTransactions(any())).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/transactions")
                         .with(jwt().jwt(j -> j.subject("employee-id"))

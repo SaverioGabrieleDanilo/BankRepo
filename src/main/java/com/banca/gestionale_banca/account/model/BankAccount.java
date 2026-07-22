@@ -1,12 +1,7 @@
 package com.banca.gestionale_banca.account.model;
 
-import com.banca.gestionale_banca.account.constants.StatiConto;
-import com.banca.gestionale_banca.shared.exception.ConflictException;
-import com.banca.gestionale_banca.user.model.User;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -20,6 +15,10 @@ import jakarta.persistence.Version;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import com.banca.gestionale_banca.account.constants.BankAccountStatus;
+import com.banca.gestionale_banca.shared.exception.ConflictException;
+import com.banca.gestionale_banca.user.model.User;
 
 @Entity
 @Table(name = "bank_accounts")
@@ -77,6 +76,6 @@ public class BankAccount {
     }
 
     public boolean isActive() {
-        return StatiConto.ATTIVO.equals(this.getStatus().getName());
+        return BankAccountStatus.ACTIVE.equals(this.getStatus().getName());
     }
 }

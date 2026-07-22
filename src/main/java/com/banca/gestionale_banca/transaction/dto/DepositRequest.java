@@ -1,15 +1,14 @@
 package com.banca.gestionale_banca.transaction.dto;
 
-import com.banca.gestionale_banca.transaction.model.DepositType;
-import com.banca.gestionale_banca.validation.Iban;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
-
 import java.math.BigDecimal;
+
+import com.banca.gestionale_banca.validation.Iban;
 
 @Getter
 @Setter

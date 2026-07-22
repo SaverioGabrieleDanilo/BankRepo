@@ -29,7 +29,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/utenti")
+@RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class UserController {
 
@@ -37,13 +37,13 @@ public class UserController {
     private final AuditLogger auditLogger;
     private final AuthorizationFacade authorizationFacade;
 
-    @PostMapping("/registra")
+    @PostMapping("/register")
     public ResponseEntity<UserResponse> registerUser(@Valid @RequestBody RegisterRequest request) {
         User user = userService.registerUser(request);
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
-    @PostMapping("/admin/crea")
+    @PostMapping("/admin/create")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponse> createUserWithRole(@Valid @RequestBody AdminCreateUserRequest request) {
         User user = userService.registerUserWithRole(request, request.getRole());

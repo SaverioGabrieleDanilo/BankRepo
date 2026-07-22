@@ -54,7 +54,7 @@ class BankAccountServiceImplTest {
         when(accountStatusRepository.findByName("IN_ATTESA")).thenReturn(Optional.of(new AccountStatus("IN_ATTESA")));
         when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        BankAccountResponse response = service.apriConto("user-1");
+        BankAccountResponse response = service.openBankAccount("user-1");
 
         assertEquals("IN_ATTESA", response.getStatus());
         assertEquals(BigDecimal.ZERO, response.getBalance());
@@ -71,7 +71,7 @@ class BankAccountServiceImplTest {
 
         when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
 
-        assertThrows(ConflictException.class, () -> service.chiudiConto(1L, "user-1", false));
+        assertThrows(ConflictException.class, () -> service.closeBankAccount(1L, "user-1", false));
     }
 
     @Test
@@ -86,7 +86,7 @@ class BankAccountServiceImplTest {
         when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> service.chiudiConto(1L, "un-altro-user", false));
+                () -> service.closeBankAccount(1L, "un-altro-user", false));
 
         assertEquals(403, ex.getStatusCode().value());
     }
@@ -98,6 +98,48 @@ class BankAccountServiceImplTest {
 
         when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
 
-        assertThrows(ConflictException.class, () -> service.approvaConto(1L, true));
+        assertThrows(ConflictException.class, () -> service.approveBankAccount(1L, true));
+    }
+
+    @Test
+    void changeAccountStatus_chiusuraConSaldoDiversoDaZero_lanciaConflictException() {
+        BankAccount account = new BankAccount();
+        account.setStatus(new AccountStatus("ATTIVO"));
+        account.setBalance(new BigDecimal("10.00"));
+
+        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
+        when(accountStatusRepository.findByName("CHIUSO")).thenReturn(Optional.of(new AccountStatus("CHIUSO")));
+
+        assertThrows(ConflictException.class, () -> service.changeBankAccountStatus(1L, "CHIUSO"));
+    }
+
+    @Test
+    void changeAccountStatus_chiusuraConSaldoZero_aggiornaStato() {
+        BankAccount account = new BankAccount();
+        account.setStatus(new AccountStatus("ATTIVO"));
+        account.setBalance(BigDecimal.ZERO);
+
+        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
+        when(accountStatusRepository.findByName("CHIUSO")).thenReturn(Optional.of(new AccountStatus("CHIUSO")));
+        when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BankAccountResponse response = service.changeBankAccountStatus(1L, "CHIUSO");
+
+        assertEquals("CHIUSO", response.getStatus());
+    }
+
+    @Test
+    void changeAccountStatus_riattivazione_nonRichiedeSaldoZero() {
+        BankAccount account = new BankAccount();
+        account.setStatus(new AccountStatus("CHIUSO"));
+        account.setBalance(BigDecimal.ZERO);
+
+        when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
+        when(accountStatusRepository.findByName("ATTIVO")).thenReturn(Optional.of(new AccountStatus("ATTIVO")));
+        when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BankAccountResponse response = service.changeBankAccountStatus(1L, "ATTIVO");
+
+        assertEquals("ATTIVO", response.getStatus());
     }
 }

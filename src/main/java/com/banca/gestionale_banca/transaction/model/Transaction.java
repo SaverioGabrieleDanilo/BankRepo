@@ -1,8 +1,5 @@
 package com.banca.gestionale_banca.transaction.model;
 
-import com.banca.gestionale_banca.account.model.BankAccount;
-import com.banca.gestionale_banca.user.model.User;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import jakarta.persistence.Column;
@@ -17,6 +14,9 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import com.banca.gestionale_banca.account.model.BankAccount;
+import com.banca.gestionale_banca.user.model.User;
 
 @Entity
 @Table(name = "transactions")
