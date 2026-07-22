@@ -1,5 +1,11 @@
 package com.banca.gestionale_banca.account.service;
 
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
+import java.util.Optional;
+
 import com.banca.gestionale_banca.account.dto.AccountLimitsRequest;
 import com.banca.gestionale_banca.account.dto.AccountLimitsResponse;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
@@ -9,13 +15,6 @@ import com.banca.gestionale_banca.account.repository.AccountLimitsRepository;
 import com.banca.gestionale_banca.account.repository.BankAccountRepository;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.transaction.repository.TransactionRepository;
-
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -28,25 +27,28 @@ class AccountLimitsServiceImpl implements AccountLimitsService {
 
     @Override
     @Transactional(readOnly = true)
-    public AccountLimitsResponse getLimiti(Long accountId, String keycloakId, boolean isEmployee) {
+    public AccountLimitsResponse getBankAccountLimits(Long accountId, String keycloakId, boolean isEmployee) {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
-        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a consultare questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee,
+                "Non autorizzato a consultare questo conto");
 
         AccountLimits limits = accountLimitsRepository.findByAccountId(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Limiti non ancora configurati per questo conto"));
 
-        return toResponseConDisponibilita(limits);
+        return toResponseWithAvailability(limits);
     }
 
     @Override
     @Transactional
-    public AccountLimitsResponse impostaLimiti(Long accountId, AccountLimitsRequest request, String keycloakId, boolean isEmployee) {
+    public AccountLimitsResponse setBankAccountLimits(Long accountId, AccountLimitsRequest request, String keycloakId,
+            boolean isEmployee) {
         BankAccount account = bankAccountRepository.findById(accountId)
                 .orElseThrow(() -> new ResourceNotFoundException("Conto corrente non trovato"));
 
-        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee, "Non autorizzato a modificare i massimali di questo conto");
+        authorizationFacade.verifyOwnership(account.getUser().getKeycloakId(), keycloakId, isEmployee,
+                "Non autorizzato a modificare i massimali di questo conto");
 
         LocalDateTime now = LocalDateTime.now();
         AccountLimits limits = accountLimitsRepository.findByAccountId(accountId).orElseGet(AccountLimits::new);
@@ -67,7 +69,7 @@ class AccountLimitsServiceImpl implements AccountLimitsService {
     }
 
     @Override
-    public Optional<AccountLimitsResponse> findLimiti(Long accountId) {
+    public Optional<AccountLimitsResponse> findLimits(Long accountId) {
         return accountLimitsRepository.findByAccountId(accountId).map(this::toResponse);
     }
 
@@ -82,11 +84,13 @@ class AccountLimitsServiceImpl implements AccountLimitsService {
     }
 
     /**
-     * Come toResponse, ma con in aggiunta quanto già consumato oggi/questo mese
-     * (2 query in più) — usata solo per la GET esposta al cliente, non nel percorso
-     * caldo della validazione delle transazioni (verificaLimiti/findLimiti).
+     * Same as toResponse, but including the amount already consumed today/this
+     * month
+     * (2 extra queries) — used only for the GET exposed to the client, not in the
+     * hot path
+     * of transaction validation (verificaLimiti/findLimiti).
      */
-    private AccountLimitsResponse toResponseConDisponibilita(AccountLimits limits) {
+    private AccountLimitsResponse toResponseWithAvailability(AccountLimits limits) {
         Long accountId = limits.getAccount().getId();
         LocalDateTime dayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
         LocalDateTime dayEnd = dayStart.plusDays(1).minusNanos(1);
@@ -99,7 +103,8 @@ class AccountLimitsServiceImpl implements AccountLimitsService {
                 .singleTransactionLimit(limits.getSingleTransactionLimit())
                 .monthlyTransferLimit(limits.getMonthlyTransferLimit())
                 .dailyWithdrawalUsed(transactionRepository.sumDailyWithdrawalsByAccount(accountId, dayStart, dayEnd))
-                .monthlyTransferUsed(transactionRepository.sumMonthlyTransfersByAccount(accountId, monthStart, monthEnd))
+                .monthlyTransferUsed(
+                        transactionRepository.sumMonthlyTransfersByAccount(accountId, monthStart, monthEnd))
                 .updatedAt(limits.getUpdatedAt())
                 .build();
     }
