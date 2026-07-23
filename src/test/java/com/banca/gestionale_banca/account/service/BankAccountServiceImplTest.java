@@ -51,13 +51,27 @@ class BankAccountServiceImplTest {
         User user = new User();
         user.setKeycloakId("user-1");
         when(userService.findByKeycloakId("user-1")).thenReturn(Optional.of(user));
-        when(accountStatusRepository.findByName("IN_ATTESA")).thenReturn(Optional.of(new AccountStatus("IN_ATTESA")));
+        when(accountStatusRepository.findByName("PENDING")).thenReturn(Optional.of(new AccountStatus("PENDING")));
         when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        BankAccountResponse response = service.openBankAccount("user-1");
+        BankAccountResponse response = service.openBankAccount("user-1", null);
 
-        assertEquals("IN_ATTESA", response.getStatus());
+        assertEquals("PENDING", response.getStatus());
         assertEquals(BigDecimal.ZERO, response.getBalance());
+    }
+
+    @Test
+    void apriConto_conSaldoInizialeSpecificato_usaComeSaldoDiApertura() {
+        User user = new User();
+        user.setKeycloakId("user-1");
+        when(userService.findByKeycloakId("user-1")).thenReturn(Optional.of(user));
+        when(accountStatusRepository.findByName("PENDING")).thenReturn(Optional.of(new AccountStatus("PENDING")));
+        when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BankAccountResponse response = service.openBankAccount("user-1", new BigDecimal("250.00"));
+
+        assertEquals(new BigDecimal("250.00"), response.getBalance());
+        assertEquals(new BigDecimal("250.00"), response.getContableBalance());
     }
 
     @Test
@@ -104,42 +118,42 @@ class BankAccountServiceImplTest {
     @Test
     void changeAccountStatus_chiusuraConSaldoDiversoDaZero_lanciaConflictException() {
         BankAccount account = new BankAccount();
-        account.setStatus(new AccountStatus("ATTIVO"));
+        account.setStatus(new AccountStatus("ACTIVE"));
         account.setBalance(new BigDecimal("10.00"));
 
         when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
-        when(accountStatusRepository.findByName("CHIUSO")).thenReturn(Optional.of(new AccountStatus("CHIUSO")));
+        when(accountStatusRepository.findByName("CLOSED")).thenReturn(Optional.of(new AccountStatus("CLOSED")));
 
-        assertThrows(ConflictException.class, () -> service.changeBankAccountStatus(1L, "CHIUSO"));
+        assertThrows(ConflictException.class, () -> service.changeBankAccountStatus(1L, "CLOSED"));
     }
 
     @Test
     void changeAccountStatus_chiusuraConSaldoZero_aggiornaStato() {
         BankAccount account = new BankAccount();
-        account.setStatus(new AccountStatus("ATTIVO"));
+        account.setStatus(new AccountStatus("ACTIVE"));
         account.setBalance(BigDecimal.ZERO);
 
         when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
-        when(accountStatusRepository.findByName("CHIUSO")).thenReturn(Optional.of(new AccountStatus("CHIUSO")));
+        when(accountStatusRepository.findByName("CLOSED")).thenReturn(Optional.of(new AccountStatus("CLOSED")));
         when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        BankAccountResponse response = service.changeBankAccountStatus(1L, "CHIUSO");
+        BankAccountResponse response = service.changeBankAccountStatus(1L, "CLOSED");
 
-        assertEquals("CHIUSO", response.getStatus());
+        assertEquals("CLOSED", response.getStatus());
     }
 
     @Test
     void changeAccountStatus_riattivazione_nonRichiedeSaldoZero() {
         BankAccount account = new BankAccount();
-        account.setStatus(new AccountStatus("CHIUSO"));
+        account.setStatus(new AccountStatus("CLOSED"));
         account.setBalance(BigDecimal.ZERO);
 
         when(bankAccountRepository.findById(1L)).thenReturn(Optional.of(account));
-        when(accountStatusRepository.findByName("ATTIVO")).thenReturn(Optional.of(new AccountStatus("ATTIVO")));
+        when(accountStatusRepository.findByName("ACTIVE")).thenReturn(Optional.of(new AccountStatus("ACTIVE")));
         when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        BankAccountResponse response = service.changeBankAccountStatus(1L, "ATTIVO");
+        BankAccountResponse response = service.changeBankAccountStatus(1L, "ACTIVE");
 
-        assertEquals("ATTIVO", response.getStatus());
+        assertEquals("ACTIVE", response.getStatus());
     }
 }

@@ -69,9 +69,11 @@ public class Transaction {
     @JoinColumn(name = "deposit_type_id", nullable = true)
     private DepositType depositType;
 
+    //da quanti "pezzi" (fisici o logici) è composta la transazione
     @Column(name = "items_count", nullable = true)
     private Integer itemsCount;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }
+

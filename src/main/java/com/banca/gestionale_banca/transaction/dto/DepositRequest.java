@@ -13,6 +13,7 @@ import com.banca.gestionale_banca.validation.Iban;
 @Getter
 @Setter
 public class DepositRequest {
+
     @NotBlank
     @Iban
     private String iban;
@@ -24,9 +25,9 @@ public class DepositRequest {
     private String description;
 
     @NotBlank
-    private String depositType;
+    private String depositType = "1";
 
     @NotNull
-    @Min(value = 1, message = "Il numero di banconote o assegni deve essere positivo ")
-    private Integer itemsCount;
+    @Min(value = 1, message = "Il numero di banconote o assegni deve essere positivo")
+    private Integer itemsCount = 1;
 }

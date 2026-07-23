@@ -6,6 +6,7 @@ import com.banca.gestionale_banca.account.dto.AccountStatusRequest;
 import com.banca.gestionale_banca.account.dto.ApproveAccountRequest;
 import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
+import com.banca.gestionale_banca.account.dto.OpenAccountRequest;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.shared.security.AuditLogger;
@@ -65,12 +66,41 @@ class BankAccountControllerTest {
 
     @Test
     void apriConto_conRuoloCustomer_e200() throws Exception {
-        when(bankAccountService.openBankAccount(any())).thenReturn(contoResponse());
+        when(bankAccountService.openBankAccount(any(), any())).thenReturn(contoResponse());
 
         mockMvc.perform(post("/api/bank-accounts/opening")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void apriConto_conSaldoIniziale_e200() throws Exception {
+        when(bankAccountService.openBankAccount(any(), eq(new java.math.BigDecimal("100.00"))))
+                .thenReturn(contoResponse());
+
+        OpenAccountRequest request = new OpenAccountRequest();
+        request.setInitialBalance(new java.math.BigDecimal("100.00"));
+
+        mockMvc.perform(post("/api/bank-accounts/opening")
+                        .with(jwt().jwt(j -> j.subject("customer-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void apriConto_conSaldoInizialeNegativo_e400() throws Exception {
+        OpenAccountRequest request = new OpenAccountRequest();
+        request.setInitialBalance(new java.math.BigDecimal("-10.00"));
+
+        mockMvc.perform(post("/api/bank-accounts/opening")
+                        .with(jwt().jwt(j -> j.subject("customer-id"))
+                                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -336,9 +366,9 @@ class BankAccountControllerTest {
     @Test
     void cambiaStatoConto_conRuoloEmployee_e200() throws Exception {
         AccountStatusRequest request = new AccountStatusRequest();
-        request.setStatus("CHIUSO");
+        request.setStatus("CLOSED");
 
-        when(bankAccountService.changeBankAccountStatus(eq(1L), eq("CHIUSO"))).thenReturn(contoResponse());
+        when(bankAccountService.changeBankAccountStatus(eq(1L), eq("CLOSED"))).thenReturn(contoResponse());
 
         mockMvc.perform(patch("/api/bank-accounts/1/status")
                         .with(jwt().jwt(j -> j.subject("employee-id"))
@@ -351,9 +381,9 @@ class BankAccountControllerTest {
     @Test
     void cambiaStatoConto_conRuoloAdmin_e200() throws Exception {
         AccountStatusRequest request = new AccountStatusRequest();
-        request.setStatus("ATTIVO");
+        request.setStatus("ACTIVE");
 
-        when(bankAccountService.changeBankAccountStatus(eq(1L), eq("ATTIVO"))).thenReturn(contoResponse());
+        when(bankAccountService.changeBankAccountStatus(eq(1L), eq("ACTIVE"))).thenReturn(contoResponse());
 
         mockMvc.perform(patch("/api/bank-accounts/1/status")
                         .with(jwt().jwt(j -> j.subject("admin-id"))
@@ -366,7 +396,7 @@ class BankAccountControllerTest {
     @Test
     void cambiaStatoConto_conRuoloCustomer_e403() throws Exception {
         AccountStatusRequest request = new AccountStatusRequest();
-        request.setStatus("CHIUSO");
+        request.setStatus("CLOSED");
 
         mockMvc.perform(patch("/api/bank-accounts/1/status")
                         .with(jwt().jwt(j -> j.subject("customer-id"))

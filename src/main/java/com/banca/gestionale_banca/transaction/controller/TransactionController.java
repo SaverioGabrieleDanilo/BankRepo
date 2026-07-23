@@ -46,7 +46,7 @@ public class TransactionController {
         boolean isEmployee = authorizationFacade.isEmployee(authentication);
         TransactionResponse response = transactionService.executeDeposit(request, jwt.getSubject(), isEmployee);
         if (isEmployee) {
-            auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "VERSAMENTO", "conto", request.getIban());
+            auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "DEPOSIT", "conto", request.getIban());
         }
         return ResponseEntity.ok(response);
     }
@@ -59,7 +59,7 @@ public class TransactionController {
         boolean isEmployee = authorizationFacade.isEmployee(authentication);
         TransactionResponse response = transactionService.executeWithdrawal(request, jwt.getSubject(), isEmployee);
         if (isEmployee) {
-            auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "PRELIEVO", "conto", request.getIban());
+            auditLogger.log(jwt.getSubject(), jwt.getClaimAsString("preferred_username"), "WITHDRAWAL", "conto", request.getIban());
         }
         return ResponseEntity.ok(response);
     }

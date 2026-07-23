@@ -1,5 +1,6 @@
 package com.banca.gestionale_banca.account.controller;
 
+import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -29,6 +30,7 @@ import com.banca.gestionale_banca.account.dto.BankAccountAdminResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountSummaryResponse;
 import com.banca.gestionale_banca.account.dto.BankAccountStatsResponse;
+import com.banca.gestionale_banca.account.dto.OpenAccountRequest;
 import com.banca.gestionale_banca.account.service.AccountLimitsService;
 import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.shared.security.AuditLogger;
@@ -49,8 +51,11 @@ public class BankAccountController {
 
     @PostMapping("/opening")
     @PreAuthorize("hasAnyRole('EMPLOYEE','CUSTOMER')")
-    public ResponseEntity<BankAccountResponse> openBankAccount(@AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(bankAccountService.openBankAccount(jwt.getSubject()));
+    public ResponseEntity<BankAccountResponse> openBankAccount(
+            @Valid @RequestBody(required = false) OpenAccountRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        BigDecimal initialBalance = request != null ? request.getInitialBalance() : null;
+        return ResponseEntity.ok(bankAccountService.openBankAccount(jwt.getSubject(), initialBalance));
     }
 
     @PatchMapping("/{id}/approve")

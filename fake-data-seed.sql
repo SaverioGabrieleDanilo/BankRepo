@@ -56,7 +56,7 @@ INSERT INTO registration_statuses (name) VALUES ('PENDING'), ('APPROVED'), ('REJ
 INSERT INTO account_statuses (name) VALUES ('ATTIVO'), ('IN_ATTESA'), ('RIFIUTATO'), ('CHIUSO')
     ON CONFLICT (name) DO NOTHING;
 
-INSERT INTO transaction_type (name) VALUES ('VERSAMENTO'), ('PRELIEVO'), ('BONIFICO'), ('GIROCONTO')
+INSERT INTO transaction_type (name) VALUES ('DEPOSIT'), ('WITHDRAWAL'), ('BANK_TRANSFER'), ('INTERNAL_TRANSFER')
     ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO transaction_status (name) VALUES ('ESEGUITA')
@@ -272,73 +272,73 @@ ON CONFLICT (account_id) DO NOTHING;
 -- ---------------------------------------------------------------------
 INSERT INTO transactions (type_id, status, payer_account, payee_account, payer_user, payee_user, amount, description, value_date, transaction_date, created_at)
 VALUES
-    ((SELECT id FROM transaction_type WHERE name = 'VERSAMENTO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'DEPOSIT'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100008'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100008'),
         (SELECT id FROM users WHERE username = 'mesposito'), (SELECT id FROM users WHERE username = 'mesposito'),
         2000.00, 'Versamento stipendio', now() - interval '30 days', now() - interval '30 days', now() - interval '30 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'VERSAMENTO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'DEPOSIT'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100005'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100005'),
         (SELECT id FROM users WHERE username = 'fcolombo'), (SELECT id FROM users WHERE username = 'fcolombo'),
         1500.00, 'Versamento contanti', now() - interval '25 days', now() - interval '25 days', now() - interval '25 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'VERSAMENTO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'DEPOSIT'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100001'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100001'),
         (SELECT id FROM users WHERE username = 'mrossi'), (SELECT id FROM users WHERE username = 'mrossi'),
         1000.00, 'Versamento contanti', now() - interval '20 days', now() - interval '20 days', now() - interval '20 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'VERSAMENTO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'DEPOSIT'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100007'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100007'),
         (SELECT id FROM users WHERE username = 'schiara'), (SELECT id FROM users WHERE username = 'schiara'),
         600.00, 'Versamento contanti', now() - interval '18 days', now() - interval '18 days', now() - interval '18 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'PRELIEVO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'WITHDRAWAL'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100005'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100005'),
         (SELECT id FROM users WHERE username = 'fcolombo'), (SELECT id FROM users WHERE username = 'fcolombo'),
         200.00, 'Prelievo sportello', now() - interval '15 days', now() - interval '15 days', now() - interval '15 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'BONIFICO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'BANK_TRANSFER'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100008'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100001'),
         (SELECT id FROM users WHERE username = 'mesposito'), (SELECT id FROM users WHERE username = 'mrossi'),
         500.00, 'Rimborso spese comuni (Trattenuta: 10.00€)', now() - interval '12 days', now() - interval '12 days', now() - interval '12 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'PRELIEVO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'WITHDRAWAL'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100001'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100001'),
         (SELECT id FROM users WHERE username = 'mrossi'), (SELECT id FROM users WHERE username = 'mrossi'),
         150.00, 'Prelievo sportello', now() - interval '10 days', now() - interval '10 days', now() - interval '10 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'BONIFICO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'BANK_TRANSFER'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100005'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100007'),
         (SELECT id FROM users WHERE username = 'fcolombo'), (SELECT id FROM users WHERE username = 'schiara'),
         400.00, 'Quota affitto condiviso (Trattenuta: 8.00€)', now() - interval '8 days', now() - interval '8 days', now() - interval '8 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'GIROCONTO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'INTERNAL_TRANSFER'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100001'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100002'),
         (SELECT id FROM users WHERE username = 'mrossi'), (SELECT id FROM users WHERE username = 'mrossi'),
         500.00, 'Giroconto risparmio', now() - interval '6 days', now() - interval '6 days', now() - interval '6 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'BONIFICO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'BANK_TRANSFER'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100001'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100003'),
         (SELECT id FROM users WHERE username = 'mrossi'), (SELECT id FROM users WHERE username = 'gverdi'),
         300.00, 'Bonifico affitto (Trattenuta: 6.00€)', now() - interval '4 days', now() - interval '4 days', now() - interval '4 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'PRELIEVO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'WITHDRAWAL'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100007'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100007'),
         (SELECT id FROM users WHERE username = 'schiara'), (SELECT id FROM users WHERE username = 'schiara'),
         50.00, 'Prelievo sportello', now() - interval '3 days', now() - interval '3 days', now() - interval '3 days'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'VERSAMENTO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'DEPOSIT'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100003'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100003'),
         (SELECT id FROM users WHERE username = 'gverdi'), (SELECT id FROM users WHERE username = 'gverdi'),
@@ -347,25 +347,25 @@ VALUES
     -- Transazioni recenti: popolano le card "Volume (1h)" e "Volume (24h)" della
     -- dashboard monitoring, altrimenti sempre a zero perche' nessuna riga sopra
     -- cade in quelle finestre temporali rispetto al momento in cui si guarda la UI.
-    ((SELECT id FROM transaction_type WHERE name = 'VERSAMENTO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'DEPOSIT'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100001'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100001'),
         (SELECT id FROM users WHERE username = 'mrossi'), (SELECT id FROM users WHERE username = 'mrossi'),
         250.00, 'Versamento contanti', now() - interval '10 minutes', now() - interval '10 minutes', now() - interval '10 minutes'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'PRELIEVO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'WITHDRAWAL'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100005'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100005'),
         (SELECT id FROM users WHERE username = 'fcolombo'), (SELECT id FROM users WHERE username = 'fcolombo'),
         80.00, 'Prelievo sportello', now() - interval '45 minutes', now() - interval '45 minutes', now() - interval '45 minutes'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'VERSAMENTO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'DEPOSIT'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100007'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100007'),
         (SELECT id FROM users WHERE username = 'schiara'), (SELECT id FROM users WHERE username = 'schiara'),
         500.00, 'Versamento contanti', now() - interval '3 hours', now() - interval '3 hours', now() - interval '3 hours'),
 
-    ((SELECT id FROM transaction_type WHERE name = 'PRELIEVO'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
+    ((SELECT id FROM transaction_type WHERE name = 'WITHDRAWAL'), (SELECT id FROM transaction_status WHERE name = 'ESEGUITA'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100003'),
         (SELECT id FROM bank_accounts WHERE iban = 'IT60X0542811101000000100003'),
         (SELECT id FROM users WHERE username = 'gverdi'), (SELECT id FROM users WHERE username = 'gverdi'),
