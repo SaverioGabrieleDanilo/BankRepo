@@ -41,7 +41,7 @@ class BankAccountServiceImpl implements BankAccountService {
 
         @Override
         @Transactional
-        public BankAccountResponse openBankAccount(String keycloakId) {
+        public BankAccountResponse openBankAccount(String keycloakId, BigDecimal initialBalance) {
                 User user = userService.findByKeycloakId(keycloakId)
                                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -51,11 +51,12 @@ class BankAccountServiceImpl implements BankAccountService {
 
                 LocalDateTime now = LocalDateTime.now();
                 String newIban = IbanGenerator.generateItalianIban();
+                BigDecimal openingBalance = initialBalance != null ? initialBalance : BigDecimal.ZERO;
                 BankAccount account = new BankAccount();
                 account.setIban(newIban);
                 account.setUser(user);
-                account.setBalance(BigDecimal.ZERO);
-                account.setContableBalance(BigDecimal.ZERO);
+                account.setBalance(openingBalance);
+                account.setContableBalance(openingBalance);
                 account.setStatus(status);
                 account.setOpeningDate(now);
                 account.setCreatedAt(now);

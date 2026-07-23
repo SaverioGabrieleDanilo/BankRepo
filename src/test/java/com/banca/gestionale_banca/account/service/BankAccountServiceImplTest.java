@@ -54,7 +54,7 @@ class BankAccountServiceImplTest {
         when(accountStatusRepository.findByName("PENDING")).thenReturn(Optional.of(new AccountStatus("PENDING")));
         when(bankAccountRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        BankAccountResponse response = service.openBankAccount("user-1");
+        BankAccountResponse response = service.openBankAccount("user-1", null);
 
         assertEquals("PENDING", response.getStatus());
         assertEquals(BigDecimal.ZERO, response.getBalance());

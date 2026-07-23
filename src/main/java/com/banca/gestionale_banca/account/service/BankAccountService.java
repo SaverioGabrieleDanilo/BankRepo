@@ -14,7 +14,7 @@ import com.banca.gestionale_banca.account.model.BankAccount;
 
 public interface BankAccountService {
 
-    BankAccountResponse openBankAccount(String keycloakId);
+    BankAccountResponse openBankAccount(String keycloakId, BigDecimal initialBalance);
 
     BankAccountResponse approveBankAccount(Long accountId, boolean approved);
 

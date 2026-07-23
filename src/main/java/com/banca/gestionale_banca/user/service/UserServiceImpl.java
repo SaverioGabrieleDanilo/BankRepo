@@ -58,15 +58,20 @@ class UserServiceImpl implements UserService {
     // tutta la durata della chiamata esterna (vedi audit UserServiceImpl).
     @Override
     public User registerUser(RegisterRequest request) {
-        return createUser(request, Ruoli.CUSTOMER);
+        // Auto-registrazione pubblica: l'utente resta PENDING/SUSPENDED finche'
+        // un ADMIN o EMPLOYEE non approva la registrazione (vedi changeRegistrationStatus).
+        return createUser(request, Ruoli.CUSTOMER, false);
     }
 
     @Override
     public User registerUserWithRole(RegisterRequest request, String role) {
-        return createUser(request, role);
+        // Provisioning diretto da parte di un ADMIN (endpoint /admin/create): l'ADMIN
+        // vaglia gia' l'utente nell'atto stesso di crearlo, quindi non ha senso un
+        // ulteriore giro di approvazione: l'utente nasce gia' ACTIVE/APPROVED.
+        return createUser(request, role, true);
     }
 
-    private User createUser(RegisterRequest request, String roleName) {
+    private User createUser(RegisterRequest request, String roleName, boolean autoApprove) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new ConflictException("Username già in uso");
         }
@@ -96,7 +101,10 @@ class UserServiceImpl implements UserService {
         user.setEmail(request.getEmail());
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
-        user.setEnabled(true);
+        // Se la registrazione richiede approvazione, l'utente nasce disabilitato su
+        // Keycloak: senza questo, uno stato di registrazione PENDING sarebbe puramente
+        // decorativo, perche' l'utente potrebbe comunque autenticarsi e operare.
+        user.setEnabled(autoApprove);
 
         CredentialRepresentation cred = new CredentialRepresentation();
         cred.setType(CredentialRepresentation.PASSWORD);
@@ -133,10 +141,16 @@ class UserServiceImpl implements UserService {
             // Assegnazione ruolo
             assignRole(realmResource, usersResource, keycloakId, role.getName());
 
-            UserStatus active = userStatusRepository.findByName(UserStatuses.ACTIVE)
-                    .orElseThrow(() -> new ResourceNotFoundException("Stato ACTIVE non trovato"));
-            RegistrationStatus pending = registrationStatusRepository.findByName(RegistrationStatuses.PENDING)
-                    .orElseThrow(() -> new ResourceNotFoundException("Stato PENDING non trovato"));
+            // Stati coerenti tra loro: o l'utente e' gia' approvato ed e' operativo
+            // (ACTIVE/APPROVED, provisioning diretto ADMIN), oppure e' in attesa di
+            // revisione e non e' ancora operativo (SUSPENDED/PENDING, auto-registrazione).
+            String initialStatusName = autoApprove ? UserStatuses.ACTIVE : UserStatuses.SUSPENDED;
+            String initialRegistrationStatusName = autoApprove ? RegistrationStatuses.APPROVED : RegistrationStatuses.PENDING;
+
+            UserStatus initialStatus = userStatusRepository.findByName(initialStatusName)
+                    .orElseThrow(() -> new ResourceNotFoundException("Stato '" + initialStatusName + "' non trovato"));
+            RegistrationStatus initialRegistrationStatus = registrationStatusRepository.findByName(initialRegistrationStatusName)
+                    .orElseThrow(() -> new ResourceNotFoundException("Stato di registrazione '" + initialRegistrationStatusName + "' non trovato"));
 
             User u = new User();
             u.setKeycloakId(keycloakId);
@@ -146,8 +160,8 @@ class UserServiceImpl implements UserService {
             u.setLastName(request.getLastName());
             u.setDateOfBirth(request.getDateOfBirth());
             u.setRole(role);
-            u.setStatus(active);
-            u.setRegistrationStatus(pending);
+            u.setStatus(initialStatus);
+            u.setRegistrationStatus(initialRegistrationStatus);
 
             return userRepository.save(u);
 
@@ -248,6 +262,13 @@ class UserServiceImpl implements UserService {
             throw new ConflictException("Non è possibile modificare lo stato di un utente ADMIN da questo pannello");
         }
 
+        // Un utente con registrazione ancora PENDING non puo' essere attivato da qui:
+        // altrimenti si ricrea l'incoerenza ACTIVE+PENDING. Va approvata prima la
+        // registrazione (changeRegistrationStatus), che si occupa anche di attivare l'utente.
+        if (UserStatuses.ACTIVE.equals(statusName) && RegistrationStatuses.PENDING.equals(u.getRegistrationStatus().getName())) {
+            throw new ConflictException("Impossibile attivare un utente con registrazione in attesa di approvazione: approvare prima la registrazione");
+        }
+
         UserStatus newStatus = userStatusRepository.findByName(statusName)
                 .orElseThrow(() -> new ResourceNotFoundException("Stato '" + statusName + "' non valido"));
 
@@ -275,6 +296,35 @@ class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("Stato di registrazione '" + statusName + "' non valido"));
 
         u.setRegistrationStatus(newStatus);
+
+        // Cascata verso lo stato utente: l'esito della revisione e' l'unico momento
+        // in cui un utente PENDING/SUSPENDED diventa operativo (o viene chiuso),
+        // sia sul DB sia su Keycloak. Senza questa cascata l'utente resterebbe
+        // SUSPENDED/disabilitato per sempre nonostante l'approvazione (o, peggio,
+        // ACTIVE nonostante il rifiuto, se lo stato utente non fosse gia' allineato).
+        String cascadedStatusName = switch (statusName) {
+            case RegistrationStatuses.APPROVED -> UserStatuses.ACTIVE;
+            case RegistrationStatuses.REJECTED -> UserStatuses.CLOSED;
+            default -> null; // ritorno a PENDING: nessuna cascata automatica
+        };
+
+        if (cascadedStatusName != null) {
+            UserStatus newUserStatus = userStatusRepository.findByName(cascadedStatusName)
+                    .orElseThrow(() -> new ResourceNotFoundException("Stato '" + cascadedStatusName + "' non trovato"));
+
+            boolean enabled = UserStatuses.ACTIVE.equals(cascadedStatusName);
+            try {
+                UserRepresentation rep = realmUsers().get(u.getKeycloakId()).toRepresentation();
+                rep.setEnabled(enabled);
+                realmUsers().get(u.getKeycloakId()).update(rep);
+            } catch (Exception e) {
+                log.error("Impossibile aggiornare lo stato su Keycloak per {}: {}", u.getKeycloakId(), e.getMessage());
+                throw new ExternalServiceException("Impossibile aggiornare lo stato utente su Keycloak", e);
+            }
+
+            u.setStatus(newUserStatus);
+        }
+
         userRepository.save(u);
         // Vedi nota in updateUser: ri-fetch con JOIN FETCH dopo il save
         // per evitare LazyInitializationException sull'entity restituita.

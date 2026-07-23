@@ -35,3 +35,7 @@ build/
 
 # log locali di run-local.ps1
 *.log
+
+# local tool config
+.claude/
+.tokensave/

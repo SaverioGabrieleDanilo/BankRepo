@@ -31,8 +31,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -180,6 +182,41 @@ public class TransactionServiceImpl implements TransactionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
 
         return toResponse(tx, tx.getPayerAccount().getIban(), tx.getPayerAccount().getBalance(), null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TransactionDetailsResponse getTransactionDetails(Long id, String keycloakId, boolean isEmployee) {
+        Transaction tx = transactionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+
+        User payer = tx.getPayerUser();
+        User payee = tx.getPayeeUser();
+        boolean isParty = (payer != null && payer.getKeycloakId().equals(keycloakId))
+                || (payee != null && payee.getKeycloakId().equals(keycloakId));
+        if (!isEmployee && !isParty) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Unauthorized to view this transaction");
+        }
+
+        BankAccount payerAccount = tx.getPayerAccount();
+        BankAccount payeeAccount = tx.getPayeeAccount();
+
+        return TransactionDetailsResponse.builder()
+                .id(tx.getId().toString())
+                .amount(tx.getAmount())
+                .date(tx.getTransactionDate())
+                .cause(tx.getDescription())
+                .sender(TransactionDetailsResponse.PartyDto.builder()
+                        .firstName(payer != null ? payer.getFirstName() : null)
+                        .lastName(payer != null ? payer.getLastName() : null)
+                        .iban(payerAccount != null ? payerAccount.getIban() : null)
+                        .build())
+                .recipient(TransactionDetailsResponse.PartyDto.builder()
+                        .firstName(payee != null ? payee.getFirstName() : null)
+                        .lastName(payee != null ? payee.getLastName() : null)
+                        .iban(payeeAccount != null ? payeeAccount.getIban() : null)
+                        .build())
+                .build();
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.keycloak.admin.client.resource.RolesResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.RoleRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -109,7 +110,7 @@ class UserServiceImplTest {
         when(kcUserResource.roles()).thenReturn(roleMappingResource);
         when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
 
-        when(userStatusRepository.findByName(UserStatuses.ACTIVE)).thenReturn(Optional.of(new UserStatus(UserStatuses.ACTIVE)));
+        when(userStatusRepository.findByName(UserStatuses.SUSPENDED)).thenReturn(Optional.of(new UserStatus(UserStatuses.SUSPENDED)));
         when(registrationStatusRepository.findByName(RegistrationStatuses.PENDING)).thenReturn(Optional.of(new RegistrationStatus(RegistrationStatuses.PENDING)));
         when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -117,6 +118,8 @@ class UserServiceImplTest {
 
         assertEquals("mrossi", result.getUsername());
         assertEquals("kc-123", result.getKeycloakId());
+        assertEquals(UserStatuses.SUSPENDED, result.getStatus().getName());
+        assertEquals(RegistrationStatuses.PENDING, result.getRegistrationStatus().getName());
         verify(roleScopeResource).add(any());
     }
 
@@ -194,6 +197,44 @@ class UserServiceImplTest {
         assertThrows(ConflictException.class, () -> service.changeUserStatus(1L, UserStatuses.SUSPENDED));
 
         verify(keycloak, never()).realm(any());
+    }
+
+    @Test
+    void changeUserStatus_registrazionePending_lanciaConflictExceptionSenzaToccareKeycloak() {
+        User pendingUser = new User();
+        pendingUser.setId(1L);
+        pendingUser.setRole(new Role(Ruoli.CUSTOMER));
+        pendingUser.setRegistrationStatus(new RegistrationStatus(RegistrationStatuses.PENDING));
+        when(userRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(pendingUser));
+
+        assertThrows(ConflictException.class, () -> service.changeUserStatus(1L, UserStatuses.ACTIVE));
+
+        verify(keycloak, never()).realm(any());
+    }
+
+    @Test
+    void changeRegistrationStatus_approvata_attivaUtenteEAbilitaSuKeycloak() {
+        User pendingUser = new User();
+        pendingUser.setId(1L);
+        pendingUser.setKeycloakId("kc-1");
+        pendingUser.setRole(new Role(Ruoli.CUSTOMER));
+        pendingUser.setStatus(new UserStatus(UserStatuses.SUSPENDED));
+        pendingUser.setRegistrationStatus(new RegistrationStatus(RegistrationStatuses.PENDING));
+        when(userRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(pendingUser));
+
+        when(registrationStatusRepository.findByName(RegistrationStatuses.APPROVED))
+                .thenReturn(Optional.of(new RegistrationStatus(RegistrationStatuses.APPROVED)));
+        when(userStatusRepository.findByName(UserStatuses.ACTIVE))
+                .thenReturn(Optional.of(new UserStatus(UserStatuses.ACTIVE)));
+
+        UserResource kcUserResource = mock(UserResource.class);
+        when(usersResource.get("kc-1")).thenReturn(kcUserResource);
+        when(kcUserResource.toRepresentation()).thenReturn(new UserRepresentation());
+
+        service.changeRegistrationStatus(1L, RegistrationStatuses.APPROVED);
+
+        assertEquals(UserStatuses.ACTIVE, pendingUser.getStatus().getName());
+        verify(kcUserResource).update(argThat(UserRepresentation::isEnabled));
     }
 
     @Test

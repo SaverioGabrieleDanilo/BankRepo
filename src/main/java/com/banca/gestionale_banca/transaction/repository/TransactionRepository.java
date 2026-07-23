@@ -71,7 +71,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query("""
             SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
             WHERE t.payerAccount.id = :accountId
-              AND t.type.name = 'PRELIEVO'
+              AND t.type.name = 'WITHDRAWAL'
               AND t.valueDate BETWEEN :dayStart AND :dayEnd
             """)
     BigDecimal sumDailyWithdrawalsByAccount(@Param("accountId") Long accountId,
@@ -81,7 +81,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query("""
             SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
             WHERE t.payerAccount.id = :accountId
-              AND t.type.name IN ('BONIFICO', 'GIROCONTO')
+              AND t.type.name IN ('BANK_TRANSFER', 'INTERNAL_TRANSFER')
               AND t.valueDate BETWEEN :monthStart AND :monthEnd
             """)
     BigDecimal sumMonthlyTransfersByAccount(@Param("accountId") Long accountId,

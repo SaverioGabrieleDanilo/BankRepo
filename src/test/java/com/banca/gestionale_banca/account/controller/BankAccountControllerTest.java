@@ -65,7 +65,7 @@ class BankAccountControllerTest {
 
     @Test
     void apriConto_conRuoloCustomer_e200() throws Exception {
-        when(bankAccountService.openBankAccount(any())).thenReturn(contoResponse());
+        when(bankAccountService.openBankAccount(any(), any())).thenReturn(contoResponse());
 
         mockMvc.perform(post("/api/bank-accounts/opening")
                         .with(jwt().jwt(j -> j.subject("customer-id"))
