@@ -9,6 +9,7 @@ import com.banca.gestionale_banca.transaction.dto.InternarlTransferRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
+import com.banca.gestionale_banca.transaction.dto.TransactionDetailsResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
 
 
@@ -31,4 +32,6 @@ public interface TransactionService {
     List<TransactionResponse> getUserTransactions(String keycloakId);
 
     List<TransactionResponse> getTransactionsByIban(String iban, String keycloakId, boolean isEmployee);
+
+    TransactionDetailsResponse getTransactionDetails(Long id);
 }

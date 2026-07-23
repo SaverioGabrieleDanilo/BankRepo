@@ -20,6 +20,7 @@ import java.util.List;
 import com.banca.gestionale_banca.transaction.dto.DepositRequest;
 import com.banca.gestionale_banca.transaction.dto.InternarlTransferRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionAdminResponse;
+import com.banca.gestionale_banca.transaction.dto.TransactionDetailsResponse;
 import com.banca.gestionale_banca.transaction.dto.TransactionRequest;
 import com.banca.gestionale_banca.transaction.dto.TransactionResponse;
 import com.banca.gestionale_banca.transaction.dto.TransferRequest;
@@ -98,6 +99,11 @@ public class TransactionController {
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<TransactionResponse> getTransactionById(@PathVariable Long id) {
         return ResponseEntity.ok(transactionService.getTransactionById(id));
+    }
+
+    @GetMapping("/{id}/details")
+    public ResponseEntity<TransactionDetailsResponse> getTransactionDetails(@PathVariable Long id) {
+        return ResponseEntity.ok(transactionService.getTransactionDetails(id));
     }
 
     @GetMapping

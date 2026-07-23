@@ -173,13 +173,22 @@ public class TransactionServiceImpl implements TransactionService {
         return toResponse(transaction, sourceAccount.getIban(), sourceAccount.getBalance(), null);
     }
 
-@Override
+    @Override
     @Transactional(readOnly = true)
     public TransactionResponse getTransactionById(Long id) {
         Transaction tx = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
 
         return toResponse(tx, tx.getPayerAccount().getIban(), tx.getPayerAccount().getBalance(), null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TransactionDetailsResponse getTransactionDetails(Long id) {
+        Transaction tx = transactionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
+
+        return toDetailsResponse(tx);
     }
 
     @Override
@@ -361,5 +370,27 @@ public class TransactionServiceImpl implements TransactionService {
                 .depositType(tx.getDepositType() != null ? tx.getDepositType().getName() : null)
                 .itemsCount(tx.getItemsCount())
                 .build();
+    }
+
+    private TransactionDetailsResponse toDetailsResponse(Transaction tx) {
+        TransactionDetailsResponse response = new TransactionDetailsResponse();
+        response.setId(String.valueOf(tx.getId()));
+        response.setAmount(tx.getAmount());
+        response.setDate(tx.getTransactionDate());
+        response.setCause(tx.getDescription());
+
+        TransactionDetailsResponse.PartyDto sender = new TransactionDetailsResponse.PartyDto();
+        sender.setFirstName(tx.getPayerUser().getFirstName());
+        sender.setLastName(tx.getPayerUser().getLastName());
+        sender.setIban(tx.getPayerAccount().getIban());
+        response.setSender(sender);
+
+        TransactionDetailsResponse.PartyDto recipient = new TransactionDetailsResponse.PartyDto();
+        recipient.setFirstName(tx.getPayeeUser().getFirstName());
+        recipient.setLastName(tx.getPayeeUser().getLastName());
+        recipient.setIban(tx.getPayeeAccount().getIban());
+        response.setRecipient(recipient);
+
+        return response;
     }
 }
