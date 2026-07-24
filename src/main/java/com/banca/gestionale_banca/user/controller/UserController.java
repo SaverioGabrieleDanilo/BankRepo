@@ -12,6 +12,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.user.dto.AdminCreateUserRequest;
 import com.banca.gestionale_banca.user.dto.RegisterRequest;
 import com.banca.gestionale_banca.user.dto.UpdateUserRequest;
@@ -19,6 +20,7 @@ import com.banca.gestionale_banca.user.dto.UserResponse;
 import com.banca.gestionale_banca.user.dto.UserStatusRequest;
 import com.banca.gestionale_banca.user.dto.UserStatsResponse;
 import com.banca.gestionale_banca.user.dto.RegistrationStatusRequest;
+import com.banca.gestionale_banca.shared.constants.Ruoli;
 import com.banca.gestionale_banca.shared.exception.ResourceNotFoundException;
 import com.banca.gestionale_banca.shared.security.AuditLogger;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
@@ -36,6 +38,7 @@ public class UserController {
     private final UserService userService;
     private final AuditLogger auditLogger;
     private final AuthorizationFacade authorizationFacade;
+    private final BankAccountService bankAccountService;
 
     @PostMapping("/register")
     public ResponseEntity<UserResponse> registerUser(@Valid @RequestBody RegisterRequest request) {
@@ -47,6 +50,9 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponse> createUserWithRole(@Valid @RequestBody AdminCreateUserRequest request) {
         User user = userService.registerUserWithRole(request, request.getRole());
+        if (Ruoli.CUSTOMER.equals(request.getRole()) && request.isOpenAccount()) {
+            bankAccountService.openBankAccount(user.getKeycloakId(), request.getInitialBalance());
+        }
         return ResponseEntity.ok(UserResponse.from(user));
     }
 
