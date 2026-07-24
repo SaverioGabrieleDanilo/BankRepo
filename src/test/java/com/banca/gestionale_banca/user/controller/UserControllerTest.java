@@ -1,5 +1,6 @@
 package com.banca.gestionale_banca.user.controller;
 
+import com.banca.gestionale_banca.account.service.BankAccountService;
 import com.banca.gestionale_banca.shared.security.AuditLogger;
 import com.banca.gestionale_banca.shared.security.AuthorizationFacade;
 import com.banca.gestionale_banca.shared.security.SecurityConfig;
@@ -44,6 +45,9 @@ class UserControllerTest {
 
     @MockitoBean
     private UserService userService;
+
+    @MockitoBean
+    private BankAccountService bankAccountService;
 
     private User contoCustomer() {
         User u = new User();
